@@ -1,0 +1,29 @@
+# --- environments & build output -------------------------------------------
+.venv/
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+
+# --- research data & experiments (kept local, not shared) -------------------
+training/
+scratch/
+exclude_review/
+SEM_yedek_*/
+
+# --- macOS noise ------------------------------------------------------------
+.DS_Store
+._*
+
+# --- user data that must never be committed --------------------------------
+# analyses, the image library and its backups live in the app's data folder,
+# but keep these patterns in case anything is ever copied in here
+session.pkl*
+library.json*
+mask_cache/
+
+# --- local development helpers (not part of the distributed app) ------------
+tools/
+app/assets/*.bak.pt
+app/assets/patternnet_oldsmallcnn.pt.bak

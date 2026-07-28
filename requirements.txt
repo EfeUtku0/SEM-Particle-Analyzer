@@ -1,0 +1,39 @@
+# SEM Particle Analyzer — runtime dependencies.
+#
+#   python3.11 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt        (macOS / Linux)
+#   .venv\Scripts\pip install -r requirements.txt    (Windows)
+#
+# Python 3.11 or 3.12 is recommended; 3.13 works but some wheels lag behind.
+
+# --- Core scientific stack ---
+numpy
+scipy
+Pillow
+opencv-python-headless
+scikit-image
+
+# --- ML segmentation (particle detection) ---
+# Cellpose brings its own PyTorch dependency
+cellpose
+
+# --- Scale-bar OCR (reads "5 µm" / "1 µm" from the info bar) ---
+easyocr
+
+# --- Desktop GUI ---
+PySide6
+
+# --- Reporting ---
+pandas
+matplotlib
+# used to cut static weights out of the macOS system font for chart exports
+# (matplotlib depends on it too, but the app calls it directly)
+fonttools
+
+# --- macOS only: the native multi-select file/folder picker.
+# Without it the app quietly falls back to Qt's own dialog, so it is optional.
+pyobjc-core; sys_platform == "darwin"
+pyobjc-framework-Cocoa; sys_platform == "darwin"
+
+# --- Packaging (only needed to BUILD a distributable app, not to run it) ---
+pyinstaller
