@@ -61,3 +61,30 @@ def documents_dir():
         if os.path.isdir(p):
             return p
     return os.path.expanduser("~")
+
+
+# the repo root when running from source (app/ is one level down); None inside
+# a PyInstaller bundle, where there is no source tree to look next to
+_REPO_ROOT = None if getattr(sys, "frozen", False) else \
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def named_user_dir(env_var, folder_name):
+    """Resolve a user-visible data folder (training set, golden set): an env
+    override, else wherever the folder ALREADY IS, else its default spot next
+    to Documents/Desktop.
+
+    2026-08-07: the user moved "SEM Eğitim" and "SEM Golden" out of ~/Desktop
+    into the sem-analyzer repo folder. Both training_store and golden_store
+    used to hard-code the Desktop path, so that move would have made the app
+    see an empty folder and think all the confirmed training data was gone —
+    checking next to the repo first is what makes "I moved the folder" actually
+    work instead of silently orphaning it."""
+    env = os.environ.get(env_var)
+    if env:
+        return env
+    if _REPO_ROOT:
+        beside_repo = os.path.join(_REPO_ROOT, folder_name)
+        if os.path.isdir(beside_repo):
+            return beside_repo
+    return os.path.join(documents_dir(), folder_name)

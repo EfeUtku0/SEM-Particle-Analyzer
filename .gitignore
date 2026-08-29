@@ -7,10 +7,25 @@ __pycache__/
 *.py[cod]
 
 # --- research data & experiments (kept local, not shared) -------------------
+# These are the user's own SEM micrographs and hand-placed labels: hundreds of
+# megabytes of unpublished research data. The repo ships a handful of curated
+# sample images instead (sample_images/), which IS meant to be public.
 training/
 scratch/
 exclude_review/
 SEM_yedek_*/
+SEM Eğitim/
+SEM Golden/
+Mert Ulusel Görselleri/
+_korunan_etiketler/
+# stray golden photos that end up next to the repo root while labelling
+# (leading slash = repo root only, so sample_images/ and test_images/ stay in)
+/*.jpeg
+/*.jpg
+/*.png
+/*.tif
+*.drawio.bkp
+.$*
 
 # --- macOS noise ------------------------------------------------------------
 .DS_Store

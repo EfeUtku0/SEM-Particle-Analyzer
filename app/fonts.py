@@ -59,31 +59,99 @@ def _ui_cache_dir():
     return sub_dir("fonts")
 
 
-def _bake_sf_instances():
-    """Static Regular/Bold cut from the variable system font. Cached on disk —
-    baking costs a few seconds, and only ever happens once."""
+_SF_STYLES = (("Regular", 400), ("Semibold", 600), ("Bold", 700))
+
+
+def _bake_sf_instances(styles=_SF_STYLES):
+    """Static Regular/Semibold/Bold cut from the variable system font. Cached on
+    disk — baking costs a few seconds, and only ever happens once."""
     from fontTools.ttLib import TTFont
     from fontTools.varLib import instancer
     d = _ui_cache_dir()
     made = []
-    for style, wght in (("Regular", 400), ("Bold", 700)):
-        p = os.path.join(d, f"sempa_ui_{style}.ttf")
+    for style, wght in styles:
+        p = os.path.join(d, f"sempa_ui_v4_{style}.ttf")
         if not os.path.exists(p):
             f = TTFont(_SF_VAR)
+            # opsz=17 is the axis minimum, which is what macOS itself uses for
+            # UI text at the app's sizes: at 13 pt the baked face measures 182 px
+            # for the same string as .AppleSystemUIFont, i.e. metric-identical
+            # (opsz=20, used before, came out 3% narrow and would have reflowed
+            # panels tuned pixel by pixel).
             instancer.instantiateVariableFont(
-                f, {"wght": wght, "opsz": 20, "wdth": 100, "GRAD": 400},
+                f, {"wght": wght, "opsz": 17, "wdth": 100, "GRAD": 400},
                 inplace=True)
             # SFNS's name table is missing entries that updateFontNames needs,
             # so name the instance ourselves: one family, two styles.
             nt = f["name"]
+            # 16/17 (typographic family/style) matter as much as 1/2: Qt reads 16
+            # first, and SFNS ships ".SF NS" there — leaving it made Qt file all
+            # three faces under the hidden system family and ignore ours.
             for nid, val in ((1, _UI_FAMILY), (2, style),
                              (4, f"{_UI_FAMILY} {style}"),
-                             (6, f"{_UI_FAMILY}-{style}")):
+                             (6, f"{_UI_FAMILY}-{style}"),
+                             (16, _UI_FAMILY), (17, style)):
                 nt.setName(val, nid, 3, 1, 0x409)
                 nt.setName(val, nid, 1, 0, 0)
+            # instancer sets OS/2.usWeightClass but leaves the style BITS saying
+            # "Regular", and CoreText believes the bits: without this Qt read all
+            # three faces as regular, ignored Bold/Semibold and synthesised a
+            # smeared fake bold instead (same advance width, darker pixels).
+            os2, head = f["OS/2"], f["head"]
+            os2.fsSelection &= ~(1 << 5 | 1 << 6)        # clear BOLD | REGULAR
+            head.macStyle &= ~1
+            if wght >= 700:
+                os2.fsSelection |= 1 << 5                # BOLD
+                head.macStyle |= 1
+            elif wght < 600:
+                os2.fsSelection |= 1 << 6                # REGULAR
             f.save(p)
         made.append(p)
     return made
+
+
+def qt_ui_family():
+    """Register the baked static faces with Qt and return the family name, or
+    None to leave Qt on the system font.
+
+    WHY (crash fix, 2026-07-30): macOS's UI font is the VARIABLE SFNS.ttf. Every
+    time Qt builds a font engine for it, CoreText walks the variation axes — and
+    five of the app's ten recorded crashes are a SIGSEGV inside
+    CTFontCopyVariationAxes / CopyLocalizedFontNameInternal, reached from
+    QCoreTextFontEngine::init() during an ordinary QLabel size hint. It is a
+    CoreText fault we cannot guard against from Python; the only fix is to stop
+    handing Qt a variable font. The faces baked for the exports are instances of
+    that same system font, so the UI keeps its look (Regular / Semibold / Bold —
+    Semibold exists for the file panel's DemiBold rows) without any variable
+    font in play.
+    """
+    try:
+        from PySide6 import QtGui
+        if not os.path.exists(_SF_VAR):
+            return None
+        ok = False
+        for p in _bake_sf_instances():
+            ok = QtGui.QFontDatabase.addApplicationFont(p) >= 0 or ok
+        if not ok:
+            return None
+        # Self-check before handing the family to the whole UI: the faces are
+        # only usable if Qt actually picks Bold/Semibold when a widget asks for
+        # those weights. (Under the offscreen platform it does not — it keeps
+        # Regular and fakes the bold.) An all-regular UI would be a worse
+        # regression than the crash we are avoiding, so verify, and stay on the
+        # system font if the check fails.
+        s = "Undercooled 123 Karışık"
+        adv = {}
+        for w in (QtGui.QFont.Normal, QtGui.QFont.DemiBold, QtGui.QFont.Bold):
+            f = QtGui.QFont(_UI_FAMILY, 13)
+            f.setWeight(w)
+            adv[w] = QtGui.QFontMetrics(f).horizontalAdvance(s)
+        if not (adv[QtGui.QFont.Normal] < adv[QtGui.QFont.DemiBold]
+                < adv[QtGui.QFont.Bold]):
+            return None
+        return _UI_FAMILY
+    except Exception:
+        return None                    # not macOS / no fontTools -> system font
 
 
 def matplotlib_ui_family():

@@ -21,11 +21,35 @@ home = Path.home()
 APP = os.path.abspath("app")
 
 datas = [("app/assets", "assets")]
+if os.path.isdir("sample_images"):
+    # the example micrographs a first launch seeds the library with
+    datas.append(("sample_images", "sample_images"))
 binaries = []
-hiddenimports = ["_bootstrap", "paths", "solidnet", "scale_reader", "analyze",
-                 "viz", "report", "fonts", "patternnet", "patterncrop",
-                 "classsize", "trainmode", "pattern_train",
-                 "PIL._tkinter_finder", "fontTools.varLib.instancer"]
+# Every module under app/. They are reached through the sys.path.insert in
+# gui.py rather than as a package, so list them explicitly instead of trusting
+# PyInstaller's static analysis to follow that — a module it misses does not
+# fail the build, it fails at launch on the user's machine.
+hiddenimports = [
+    # startup, paths, science pipeline
+    "_bootstrap", "paths", "analyze", "info_bar_reader", "image_files",
+    "model_solid_liquid", "model_pattern", "model_pattern_crops", "model_pattern_training",
+    "model_pattern_curve",
+    "training_store", "review_queue", "smartsort", "thresholds", "calibrate",
+    "golden_store", "model_eval", "sample_images",
+    # rendering and output
+    "overlay_draw", "chart_data", "charts", "export_files", "fonts",
+    # interface: shared widgets and dialogs
+    "ui_theme", "widget_image_view", "widget_tiles", "widget_library_tree",
+    "dialog_guide", "dialog_review_sheet", "dialog_saturation",
+    "dialog_train_report",
+    "background_workers", "window_pattern_size",
+    # interface: the window, one module per area (mixed into MainWindow)
+    "window_library", "window_results", "window_particle_edit",
+    "window_review", "window_training", "window_analysis",
+    "window_layout", "session_store",
+    # third-party bits PyInstaller cannot see
+    "PIL._tkinter_finder", "fontTools.varLib.instancer",
+]
 if IS_MAC:
     # native multi-select folder picker; absent elsewhere, and optional there
     hiddenimports += ["AppKit", "Foundation", "objc"]

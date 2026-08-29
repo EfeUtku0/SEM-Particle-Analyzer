@@ -1,0 +1,634 @@
+<mxfile host="Electron" agent="SEM Particle Analyzer belgelendirme" pages="6">
+  <diagram id="page1" name="1 · Genel Harita">
+    <mxGraphModel dx="1912" dy="1052" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1700" pageHeight="2000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p1title" parent="1" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontColor=#1a2129;" value="&lt;b&gt;SEM Particle Analyzer — Genel Harita&lt;/b&gt;&lt;br&gt;Bir SEM görüntüsünün sayıya dönüşene kadar geçtiği bütün aşamalar" vertex="1">
+          <mxGeometry height="60" width="820" x="440" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="p1leg" parent="1" style="text;html=1;align=left;fontSize=13;fontStyle=1" value="&lt;b&gt;RENK ANAHTARI&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="60" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="p1l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" value="Girdi / dosya" vertex="1">
+          <mxGeometry height="30" width="120" x="60" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="p1l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" value="Hesaplama / model" vertex="1">
+          <mxGeometry height="30" width="120" x="60" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="p1l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" value="Kural / eşik&lt;br&gt;(ayarlanabilir)" vertex="1">
+          <mxGeometry height="38" width="120" x="60" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="p1l4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" value="Önbellek / depolama" vertex="1">
+          <mxGeometry height="30" width="120" x="60" y="238" as="geometry" />
+        </mxCell>
+        <mxCell id="p1l5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" value="Kullanıcı eylemi" vertex="1">
+          <mxGeometry height="30" width="120" x="60" y="273" as="geometry" />
+        </mxCell>
+        <mxCell id="p1l6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" value="Bilinen sınırlılık" vertex="1">
+          <mxGeometry height="30" width="120" x="60" y="308" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;verticalAlign=middle;" value="&lt;b&gt;1. SEM görüntüsü&lt;/b&gt;&lt;br&gt;1536 × 1103 px, .jpeg / .tif&lt;br&gt;&lt;i&gt;alt 70 px = cihaz bilgi çubuğu&lt;/i&gt;" vertex="1">
+          <mxGeometry height="70" width="380" x="620" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" value="&lt;b&gt;2. Kalibrasyon&lt;/b&gt; — scale_reader.py&lt;br&gt;Scale bar&#39;ın piksel uzunluğu ölçülür + etiketi OCR ile okunur&lt;br&gt;(&quot;5 µm&quot;) → &lt;b&gt;nm/piksel&lt;/b&gt;. Dedektör (CBS / ETD) de okunur.&lt;br&gt;&lt;i&gt;Magnifikasyon alanı bilerek KULLANILMIYOR&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="380" x="620" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" value="&lt;b&gt;3. Segmentasyon&lt;/b&gt; — Cellpose (cpsam)&lt;br&gt;Her parçacık için ayrı maske. En yavaş adım (~50 s).&lt;br&gt;+ &lt;b&gt;Küçük parçacık kurtarma&lt;/b&gt;: top-hat + Otsu ile&lt;br&gt;Cellpose&#39;un kaçırdığı küçükler eklenir" vertex="1">
+          <mxGeometry height="90" width="380" x="620" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" value="&lt;b&gt;4. Parçacık özellikleri&lt;/b&gt; — regionprops&lt;br&gt;çap (eşdeğer daire), solidity, edge_cut, en/boy oranı,&lt;br&gt;parlaklık (iç ortalama − görüntü medyanı)" vertex="1">
+          <mxGeometry height="75" width="380" x="620" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" value="&lt;b&gt;5. İki sinir ağı&lt;/b&gt;&lt;br&gt;&lt;b&gt;solidnet&lt;/b&gt; → P(katı) &lt;i&gt;(sabit, uygulamayla gelir)&lt;/i&gt;&lt;br&gt;&lt;b&gt;patternnet&lt;/b&gt; → janus / stripe / lamellar / composite&lt;br&gt;&lt;i&gt;(siz eğitiyorsunuz — Training modu)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="380" x="620" y="615" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" value="&lt;b&gt;6. SINIF KARARI&lt;/b&gt; — reclassify()&lt;br&gt;Ağın çıktısı + fiziksel kurallarınız birleşir&lt;br&gt;→ undercooled / desenli katı / desensiz katı / elenmiş&lt;br&gt;&lt;i&gt;ayrıntı: Sayfa 3&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="380" x="620" y="745" as="geometry" />
+        </mxCell>
+        <mxCell id="a7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" value="&lt;b&gt;7. ÖLÇÜM KAPISI&lt;/b&gt; — measurable()&lt;br&gt;&quot;Bu parçacığın çapı gerçek mi, yoksa görünen&lt;br&gt;kısmının çapı mı?&quot; → boyut istatistiğine girer / girmez&lt;br&gt;&lt;i&gt;ayrıntı: Sayfa 4&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="380" x="620" y="875" as="geometry" />
+        </mxCell>
+        <mxCell id="a8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" value="&lt;b&gt;8. Sizin düzeltmeleriniz&lt;/b&gt; (görünüm katmanı)&lt;br&gt;Sınıf atama · ölçüme sok/çıkar · tamamen ele&lt;br&gt;&lt;i&gt;Ham analiz ASLA değişmez, üstüne bindirilir — Sayfa 4&lt;/i&gt;" vertex="1">
+          <mxGeometry height="80" width="380" x="620" y="1005" as="geometry" />
+        </mxCell>
+        <mxCell id="a9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" value="&lt;b&gt;9. Sonuçlar&lt;/b&gt;&lt;br&gt;Histogram · kümülatif (D10/D50/D90) · Pattern × Size&lt;br&gt;sayı kutucukları · PNG export&lt;br&gt;&lt;i&gt;ayrıntı: Sayfa 5&lt;/i&gt;" vertex="1">
+          <mxGeometry height="80" width="380" x="620" y="1125" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="a1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="a2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="a3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="a4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="a5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="a6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="a7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="a8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="a9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;dashed=1;" value="&lt;b&gt;Önbellek&lt;/b&gt;&lt;br&gt;nm/px sonucu&lt;br&gt;(.scale.json)" vertex="1">
+          <mxGeometry height="60" width="140" x="1080" y="255" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;dashed=1;" value="&lt;b&gt;Önbellek&lt;/b&gt;&lt;br&gt;Cellpose maskeleri&lt;br&gt;(.npz — yeniden analizi&lt;br&gt;50 s&#39;den ~10 s&#39;ye indirir)" vertex="1">
+          <mxGeometry height="70" width="140" x="1080" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="ec1" edge="1" parent="1" source="a2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=none;startArrow=none;" target="c1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2" edge="1" parent="1" source="a3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=none;startArrow=none;" target="c2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;DİKKAT — sayıyı etkileyen taban&lt;/b&gt;&lt;br&gt;Sayıma girmek için: çap ≥ 15 nm &lt;b&gt;VE&lt;/b&gt; ≥ 4 px&lt;br&gt;&lt;b&gt;VE&lt;/b&gt; alan ≥ 30 px (Cellpose parçacıkları).&lt;br&gt;Kaba fotoğrafta (26,9 nm/px) bu taban&lt;br&gt;fiilen &lt;b&gt;166 nm&lt;/b&gt;, ince fotoğrafta (1,8 nm/px)&lt;br&gt;&lt;b&gt;11 nm&lt;/b&gt;. Yani tespit sınırı büyütmeye bağlı." vertex="1">
+          <mxGeometry height="105" width="290" x="1080" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="en1" edge="1" parent="1" source="a4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=none;" target="n1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Sadece CBS&#39;te sınıflandırma var&lt;/b&gt;&lt;br&gt;ETD görüntüsünde iç doku görünmediği için&lt;br&gt;katı/undercooled ayrımı yapılmaz (&quot;N/A&quot;).&lt;br&gt;Boyut ölçümü yine de çalışır." vertex="1">
+          <mxGeometry height="75" width="290" x="1080" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="en2" edge="1" parent="1" source="a5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=none;" target="n2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Küçük parçacıklar ağa HİÇ girmez&lt;/b&gt;&lt;br&gt;Top-hat ile kurtarılan küçükler solidnet ve&lt;br&gt;patternnet&#39;e verilmez → otomatik olarak&lt;br&gt;undercooled sayılırlar (200 nm kuralı zaten&lt;br&gt;aynı sonucu verirdi, 250 nm&#39;ye kadar)." vertex="1">
+          <mxGeometry height="90" width="280" x="220" y="615" as="geometry" />
+        </mxCell>
+        <mxCell id="en3" edge="1" parent="1" source="n3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=none;" target="a5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;En önemli ayrım&lt;/b&gt;&lt;br&gt;&lt;b&gt;SINIF&lt;/b&gt; ve &lt;b&gt;ÖLÇÜM&lt;/b&gt; iki ayrı karardır.&lt;br&gt;Bir parçacık &quot;lamellar&quot; olup ölçülmeyebilir&lt;br&gt;(deseni görünüyor ama çapı güvenilmez).&lt;br&gt;Tersi de olur.&lt;br&gt;&lt;i&gt;Bu, kasıtlı bir tasarım kararınız.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="105" width="280" x="220" y="800" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Kalıcı depolama&lt;/b&gt;&lt;br&gt;session.pkl → tüm analizler + düzeltmeler&lt;br&gt;library.json → sol paneldeki klasör ağacı&lt;br&gt;&lt;i&gt;Sayfa 6&lt;/i&gt;" vertex="1">
+          <mxGeometry height="70" width="290" x="1080" y="1015" as="geometry" />
+        </mxCell>
+        <mxCell id="es1" edge="1" parent="1" source="a8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;endArrow=none;" target="s1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="tr1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Eğitim döngüsü&lt;/b&gt;&lt;br&gt;Training modunda etiketlediğiniz parçacıklar&lt;br&gt;→ patternnet yeniden eğitilir → 5. adım değişir&lt;br&gt;&lt;i&gt;Sayfa 6&lt;/i&gt;" vertex="1">
+          <mxGeometry height="75" width="280" x="220" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="etr1" edge="1" parent="1" source="tr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" target="a5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page2" name="2 · Analiz Boru Hattı (detay)">
+    <mxGraphModel dx="1304" dy="717" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p2t" parent="1" style="text;html=1;align=center;fontSize=22;" value="&lt;b&gt;analyze_image() — adım adım&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;app/analyze.py · &quot;Analyze&quot; butonuna basınca her fotoğraf için bu çalışır&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="860" x="420" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="b1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;1) Kalibrasyonu oku&lt;/b&gt; — _read_scale_cached()&lt;br&gt;• Bilgi çubuğunun sağ hücresinde scale bar&#39;ı bul (uç çizgileri arası piksel)&lt;br&gt;• Etiketi EasyOCR ile oku → &quot;5 µm&quot; → 5000 nm&lt;br&gt;• &lt;b&gt;nm/px = etiket_nm / bar_px&lt;/b&gt;&lt;br&gt;• Dedektörü oku (CBS / ETD)&lt;br&gt;• Akla-yatkınlık kontrolü: 0,05 – 500 nm/px dışındaysa &lt;b&gt;başarısız say&lt;/b&gt; (uyarı verir)" vertex="1">
+          <mxGeometry height="120" width="580" x="480" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="b2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;2) Bilgi çubuğunu kes&lt;/b&gt; — _find_info_bar_top()&lt;br&gt;Görüntünün &lt;b&gt;alt 70 pikseli&lt;/b&gt; atılır → mikrograf = 1536 × 1033&lt;br&gt;&lt;i&gt;Sabit 70 px. Farklı çözünürlükte export gelirse yanlış keser.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="75" width="580" x="480" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="b3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;3) Cellpose segmentasyonu&lt;/b&gt; — _segment()&lt;br&gt;model: &lt;b&gt;cpsam&lt;/b&gt; · diameter=None (otomatik) · flow_threshold=0,4 · cellprob=0,0&lt;br&gt;Çıktı: her parçacığa bir tam sayı etiketi veren maske görüntüsü&lt;br&gt;&lt;b&gt;Önbellekli&lt;/b&gt; (dosya yolu + değişim tarihi + boyut ile anahtarlanır)" vertex="1">
+          <mxGeometry height="95" width="580" x="480" y="365" as="geometry" />
+        </mxCell>
+        <mxCell id="b4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;4) Küçük parçacık kurtarma&lt;/b&gt; — _small_particle_mask()&lt;br&gt;Cellpose düşük kontrastlı küçükleri kaçırır. Klasik görüntü işleme ile tamamlanır:&lt;br&gt;white top-hat → Gauss bulanıklaştırma → &lt;b&gt;Otsu eşikleme&lt;/b&gt; → açma&lt;br&gt;Kabul şartı: 18–250 nm arası &lt;b&gt;VE&lt;/b&gt; yuvarlaklık ≥ 0,6 &lt;b&gt;VE&lt;/b&gt; solidity ≥ 0,88&lt;br&gt;&lt;b&gt;VE&lt;/b&gt; alan ≥ 12,6 px &lt;b&gt;VE&lt;/b&gt; Cellpose&#39;un bulduğu bir yere denk gelmiyor" vertex="1">
+          <mxGeometry height="110" width="580" x="480" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="b5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;5) Bölge özellikleri&lt;/b&gt; — regionprops&lt;br&gt;Filtre: alan ≥ 30 px &lt;i&gt;(Cellpose&#39;unkiler)&lt;/i&gt; VEYA kurtarılmış küçüklerden biri&lt;br&gt;&lt;br&gt;Her parçacık için hesaplanan:&lt;br&gt;• &lt;b&gt;diam_px&lt;/b&gt; = eşdeğer daire çapı = 2·√(alan/π) → &lt;b&gt;diam_nm&lt;/b&gt; = diam_px × nm/px&lt;br&gt;• &lt;b&gt;solidity&lt;/b&gt; = alan / dışbükey zarf alanı (1 = hiç çentiksiz)&lt;br&gt;• &lt;b&gt;edge_cut&lt;/b&gt; = görüntü kenarındaki piksel sayısı / çap (0 = tamamen içeride)&lt;br&gt;• &lt;b&gt;minor/major&lt;/b&gt; = elips en-boy oranı (1 = daire)&lt;br&gt;• &lt;b&gt;bright&lt;/b&gt; = parçacık iç ortalama grisi − görüntü medyanı (negatif = koyu)" vertex="1">
+          <mxGeometry height="170" width="580" x="480" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="b6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;6) SAYIM TABANLARI&lt;/b&gt; (bunları geçemeyen parçacık &lt;b&gt;hiç yokmuş&lt;/b&gt; gibi davranılır —&lt;br&gt;maskeden bile silinir, sayıma da ölçüme de girmez)&lt;br&gt;&lt;br&gt;• &lt;b&gt;MIN_COUNT_DIAM_NM = 15 nm&lt;/b&gt; (kalibrasyon okunduysa)&lt;br&gt;• &lt;b&gt;MIN_COUNT_DIAM_PX = 4 px&lt;/b&gt; ← kaba fotoğraflarda asıl iş yapan taban&lt;br&gt;&lt;i&gt;Gerekçe: büyük parçacık içindeki doku benekleri sahte &quot;30 nm parçacık&quot; oluyordu&lt;/i&gt;" vertex="1">
+          <mxGeometry height="120" width="580" x="480" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="b7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;7) solidnet&lt;/b&gt; → her parçacık için &lt;b&gt;P(katı)&lt;/b&gt;&lt;br&gt;Girdi: 64×64, 3 kanal (doku · siluet · log-boyut)&lt;br&gt;&lt;b&gt;Sabit model&lt;/b&gt; — uygulamayla gelir, Training butonu bunu eğitmez&lt;br&gt;&lt;i&gt;Sadece Cellpose parçacıklarına uygulanır (kurtarılmış küçüklere değil)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="100" width="480" x="200" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="b8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;8) patternnet&lt;/b&gt; → 4 sınıf olasılığı&lt;br&gt;janus · stripe · lamellar · composite&lt;br&gt;resnet18, 128×128 ham kırpım, 3 kanal&lt;br&gt;&lt;b&gt;SİZİN eğittiğiniz model&lt;/b&gt; (Training modu)" vertex="1">
+          <mxGeometry height="100" width="480" x="860" y="990" as="geometry" />
+        </mxCell>
+        <mxCell id="b9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" value="&lt;b&gt;9) reclassify()&lt;/b&gt; — kararı ver&lt;br&gt;Ağların çıktısı + fiziksel kurallarınız → &lt;b&gt;Sayfa 3&lt;/b&gt;" vertex="1">
+          <mxGeometry height="60" width="580" x="480" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="b10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;10) Analysis nesnesi&lt;/b&gt; — sonuç paketi&lt;br&gt;parçacık listesi · maske · mikrograf pikselleri · nm/px · dedektör&lt;br&gt;+ &lt;b&gt;pipeline damgası&lt;/b&gt; (hangi kural sürümü ve hangi model ağırlığıyla üretildi)" vertex="1">
+          <mxGeometry height="80" width="580" x="480" y="1220" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" edge="1" parent="1" source="b1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" edge="1" parent="1" source="b2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" edge="1" parent="1" source="b3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f4" edge="1" parent="1" source="b4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f5" edge="1" parent="1" source="b5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f6" edge="1" parent="1" source="b6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" target="b7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f7" edge="1" parent="1" source="b6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="b8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f8" edge="1" parent="1" source="b7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f9" edge="1" parent="1" source="b8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f10" edge="1" parent="1" source="b9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="b10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2n1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Hız notu (ölçüldü)&lt;/b&gt;&lt;br&gt;Cellpose: ~50 s &lt;i&gt;(toplamın %85&#39;i)&lt;/i&gt;&lt;br&gt;OCR: 4,1 s · patternnet: 2,7 s&lt;br&gt;solidnet: 0,6 s&lt;br&gt;&lt;br&gt;&lt;b&gt;Önbellekli yeniden analiz: ~10 s&lt;/b&gt;&lt;br&gt;(3 ve 1 numaralı adımlar atlanır)" vertex="1">
+          <mxGeometry height="130" width="250" x="1120" y="365" as="geometry" />
+        </mxCell>
+        <mxCell id="p2n2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Neden eşdeğer daire çapı?&lt;/b&gt;&lt;br&gt;Alandan türetilir, tek bir yöne bağlı&lt;br&gt;değildir. Feret çapı bilerek&lt;br&gt;reddedildi (kullanıcı kararı).&lt;br&gt;&lt;br&gt;&lt;b&gt;Doğrulandı:&lt;/b&gt; diam_px / √(major·minor)&lt;br&gt;medyanı 0,997 → maskeler tutarlı." vertex="1">
+          <mxGeometry height="130" width="250" x="1120" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="p2n3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=8;dashed=1;" value="&lt;b&gt;Kalibrasyon doğruluğu (ölçüldü)&lt;/b&gt;&lt;br&gt;Bar uç çizgileri 3 px kalın; kod dış&lt;br&gt;kenardan ölçüyor. Uç-merkezinden&lt;br&gt;ölçülse %0,4 fark ederdi.&lt;br&gt;Farklı etiket/bar kombinasyonları&lt;br&gt;aynı büyütme merdivenine %0,2–0,45&lt;br&gt;içinde düşüyor → &lt;b&gt;kalibrasyon sağlam&lt;/b&gt;." vertex="1">
+          <mxGeometry height="140" width="250" x="1120" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p2n4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Buradaki asimetri&lt;/b&gt;&lt;br&gt;Cellpose parçacıkları için alan tabanı&lt;br&gt;&lt;b&gt;30 px&lt;/b&gt; (≈ 6,2 px çap), kurtarılmış&lt;br&gt;küçükler için &lt;b&gt;12,6 px&lt;/b&gt; (4 px çap).&lt;br&gt;İki farklı taban = iki farklı tespit sınırı." vertex="1">
+          <mxGeometry height="100" width="270" x="130" y="640" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page3" name="3 · Sınıf Karar Ağacı">
+    <mxGraphModel dx="3008" dy="2288" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1900" pageHeight="1900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p3t" parent="1" style="text;html=1;align=center;fontSize=22;" value="&lt;b&gt;&lt;font style=&quot;font-size: 36px;&quot;&gt;SINIF KARAR AĞACI&lt;/font&gt;&lt;/b&gt;" vertex="1">
+          <mxGeometry height="61" width="428" x="721" y="-45" as="geometry" />
+        </mxCell>
+        <mxCell id="d0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#FFFFFF;fontSize=13;" value="&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;&lt;b style=&quot;&quot;&gt;Bir parçacık&lt;/b&gt;&lt;br&gt;P(katı) = facet_frac · çap · solidity&lt;br&gt;edge_cut · en/boy · parlaklık&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="320" x="780" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="d1no" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#FFFFFF;fontSize=13;fontStyle=1" value="&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;Undercooled&lt;/font&gt;" vertex="1">
+          <mxGeometry height="46.75" width="169" x="319" y="263.38" as="geometry" />
+        </mxCell>
+        <mxCell id="d2no" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontSize=12;" value="&lt;b&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;Solid with no pattern&lt;/font&gt;&lt;/b&gt;" vertex="1">
+          <mxGeometry height="47" width="163" x="1975" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="d3a" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontSize=12;" value="&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;4 pattern sınıfı arasında&lt;br&gt;en yüksek olasılık kazanır&lt;br&gt;(argmax)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="189" x="1401" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="d3b" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#FFFFFF;fontSize=12;align=left;spacingLeft=10;" value="&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;Composite ve lamellar olamaz çünkü fiziksel olarak imkansız.&lt;/font&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;&lt;br&gt;&lt;b&gt;Stripe&amp;nbsp;şartı: &lt;/b&gt;stripe olasılığı ≥ 0,80 &lt;i&gt;(Stripe atamaya meyilli, bunu azaltmak adına yüksek olasılık gereksinimi)&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;&lt;i&gt;&lt;br&gt;&lt;/i&gt;&lt;b&gt;Janus şartı:&lt;/b&gt; Janus olasılığı ≥ 0,55&lt;b&gt;&amp;nbsp;ve&lt;/b&gt;&amp;nbsp;çap ≥ 300 nm&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;&lt;br&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;Hiçbirini sağlamazsa &lt;/b&gt;→ desen yok&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="147" width="383" x="721" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="g0" edge="1" parent="1" source="d0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="940" y="249.33" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="g1" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;fontSize=12;fontStyle=1" value="&amp;nbsp;HAYIR&amp;nbsp;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="818" y="286.43" as="sourcePoint" />
+            <mxPoint x="498" y="286.4300000000001" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-6" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1067.5" y="279.3" as="sourcePoint" />
+            <mxPoint x="1394.41" y="279.3" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-7" connectable="0" parent="TenYsX69v3mzdCpiJwaG-6" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&lt;b&gt;&amp;nbsp;EVET&amp;nbsp;&lt;/b&gt;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#FFF2CC,#3E2800);strokeColor=#FFFFFF;" value="&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;&lt;b style=&quot;&quot;&gt;P(katı) ≥ 0,50&lt;/b&gt; ve &lt;b style=&quot;&quot;&gt;çap ≥ 200 nm&lt;/b&gt; mi?&lt;/font&gt;" vertex="1">
+          <mxGeometry height="63.5" width="255" x="812.5" y="255" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontSize=13;" value="&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; size=&quot;3&quot;&gt;&lt;b&gt;Yeterince görünüyor mu? Yani:&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; size=&quot;3&quot;&gt;Pattern_min_solidity ≥ 0,70 &lt;i&gt;(Parçacığın silueti ne kadar tam?)&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; size=&quot;3&quot;&gt;ve&amp;nbsp;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; size=&quot;3&quot;&gt;en/boy ≥ 0,30 &lt;i&gt;(bu oranın büyümesi parçacığın hilal olduğu anlamına gelir)&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; size=&quot;3&quot;&gt;&lt;b&gt;Şartlarını sağlıyor mu?&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="103" width="509" x="1405" y="227" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-13" edge="1" parent="1" source="TenYsX69v3mzdCpiJwaG-12" style="endArrow=classic;html=1;rounded=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1786.76" y="395.53" />
+              <mxPoint x="2050.88" y="395.53" />
+            </Array>
+            <mxPoint x="1983" y="366" as="sourcePoint" />
+            <mxPoint x="2050.88" y="443.76" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-14" connectable="0" parent="TenYsX69v3mzdCpiJwaG-13" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&lt;b&gt;&amp;nbsp;HAYIR&amp;nbsp;&lt;/b&gt;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-16" edge="1" parent="1" source="TenYsX69v3mzdCpiJwaG-12" style="endArrow=classic;html=1;rounded=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1295" y="425" as="sourcePoint" />
+            <mxPoint x="1267.55" y="467" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-17" connectable="0" parent="TenYsX69v3mzdCpiJwaG-16" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&lt;b&gt;&amp;nbsp;EVET&amp;nbsp;&lt;/b&gt;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=light-dark(#FFF2CC,#3E2800);strokeColor=#FFFFFF;" value="&lt;font face=&quot;Lucida Console&quot;&gt;&lt;span style=&quot;font-size: 14px;&quot;&gt;Çap 350 nm&#39;nin altında mı?&lt;/span&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="40" width="210" x="1164" y="474" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-20" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=1;exitDx=0;exitDy=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1202.5" y="589.62" />
+              <mxPoint x="916.13" y="589.62" />
+              <mxPoint x="916.13" y="658" />
+            </Array>
+            <mxPoint x="1202.45" y="521" as="sourcePoint" />
+            <mxPoint x="916.13" y="659.88" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-21" connectable="0" parent="TenYsX69v3mzdCpiJwaG-20" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&lt;b&gt;&amp;nbsp;EVET&amp;nbsp;&lt;/b&gt;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-22" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=1;exitDx=0;exitDy=0;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1357.5" y="590.38" />
+              <mxPoint x="1498" y="590.38" />
+            </Array>
+            <mxPoint x="1357.45" y="520" as="sourcePoint" />
+            <mxPoint x="1498" y="659.25" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-23" connectable="0" parent="TenYsX69v3mzdCpiJwaG-22" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&lt;b&gt;&amp;nbsp;HAYIR&amp;nbsp;&lt;/b&gt;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-26" edge="1" parent="1" source="d3b" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="1251" y="890" as="sourcePoint" />
+            <mxPoint x="1246.67" y="907" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-27" edge="1" parent="1" source="d3a" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;strokeWidth=2;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="1495.52" y="859.66" />
+              <mxPoint x="1358.69" y="859.66" />
+            </Array>
+            <mxPoint x="1269" y="888" as="sourcePoint" />
+            <mxPoint x="1358.67" y="906.71" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-28" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontSize=12;" value="&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b style=&quot;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;Janus Ek Kontrolü&lt;/font&gt;&lt;/b&gt;&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;font face=&quot;Lucida Console&quot;&gt;Tahmin Janus ise &lt;b style=&quot;&quot;&gt;ve&lt;/b&gt; P(katı) &amp;lt; 0,55 ise → deseni iptal et ve undercooled&#39;a çevir&lt;/font&gt;&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="80" width="369.5" x="1123" y="912" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-31" edge="1" parent="1" source="TenYsX69v3mzdCpiJwaG-28" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1137" y="1082" as="sourcePoint" />
+            <mxPoint x="1307.75" y="1118.4" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-32" connectable="0" parent="TenYsX69v3mzdCpiJwaG-31" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&lt;b&gt;Hala 4 pattern&#39;den birine mi sahip?&lt;/b&gt;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-33" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#FFFFFF;fontSize=12;" value="&lt;b style=&quot;&quot;&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;font-size: 14px;&quot;&gt;Peki ya karanlık mı?&lt;/font&gt;&lt;/b&gt;&lt;div&gt;&lt;font face=&quot;Lucida Console&quot; style=&quot;&quot; size=&quot;3&quot;&gt;(parlaklık &amp;lt; -30 mu?)&lt;/font&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="51" width="157.5" x="1234" y="1125" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-34" edge="1" parent="1" source="TenYsX69v3mzdCpiJwaG-33" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1288" y="1122" as="sourcePoint" />
+            <mxPoint x="1576.33" y="1150.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-35" connectable="0" parent="TenYsX69v3mzdCpiJwaG-34" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&amp;nbsp;&lt;b&gt;Evet&lt;/b&gt;&amp;nbsp;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-36" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontSize=12;" value="&lt;div&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-family: &amp;quot;Lucida Console&amp;quot;; font-size: medium;&quot;&gt;&lt;b&gt;Parçacık exclude edilir&lt;/b&gt;&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;font-family: &amp;quot;Lucida Console&amp;quot;; background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255)); font-size: medium;&quot;&gt;&lt;i&gt;(Toplam parçacık sayısına dahil olur ama çapı ölçülmez, mavi ile boyanır)&lt;/i&gt;&lt;/span&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="125" width="336" x="1593" y="1088" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-37" edge="1" parent="1" source="TenYsX69v3mzdCpiJwaG-33" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;strokeWidth=2;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1144" y="1247" as="sourcePoint" />
+            <mxPoint x="1032.38" y="1148.36" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-38" connectable="0" parent="TenYsX69v3mzdCpiJwaG-37" style="edgeLabel;resizable=0;html=1;;align=center;verticalAlign=middle;" value="&amp;nbsp;&lt;b&gt;Hayır&lt;/b&gt;&amp;nbsp;" vertex="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="TenYsX69v3mzdCpiJwaG-40" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#FFFFFF;fontSize=12;" value="&lt;font face=&quot;Lucida Console&quot; size=&quot;3&quot;&gt;Parçacık; janus, lamellar, composite veya stripe olarak boyanır&lt;/font&gt;" vertex="1">
+          <mxGeometry height="125" width="336" x="681" y="1088" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page4" name="4 · Ölçüm Kapısı + Kullanıcı Katmanı">
+    <mxGraphModel dx="1247" dy="686" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1800" pageHeight="1700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p4t" parent="1" style="text;html=1;align=center;fontSize=22;" value="&lt;b&gt;ÖLÇÜM KAPISI ve KULLANICI DÜZELTMELERİ&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;&quot;Bu parçacığın çapı gerçek çapı mı, yoksa görünen kısmının çapı mı?&quot; — sizin ilk bulduğunuz hatanın kapatıldığı yer&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="1000" x="400" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="m0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" value="&lt;b&gt;measurable(p)&lt;/b&gt; — sırayla kontrol edilir, ilk eşleşen kazanır" vertex="1">
+          <mxGeometry height="50" width="560" x="560" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="m1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="&lt;b&gt;1) Kullanıcı elle karar verdi mi?&lt;/b&gt;&lt;br&gt;user_measurable dolu ise → &lt;b&gt;o karar geçerli&lt;/b&gt;, aşağısı hiç bakılmaz" vertex="1">
+          <mxGeometry height="60" width="560" x="560" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="m2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" value="&lt;b&gt;2) Karanlık diye elendi mi?&lt;/b&gt; (excluded) → &lt;b&gt;ÖLÇME&lt;/b&gt;" vertex="1">
+          <mxGeometry height="45" width="560" x="560" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="m3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" value="&lt;b&gt;3) Kadraja fazla mı taşıyor?&lt;/b&gt;&lt;br&gt;edge_cut &amp;gt; &lt;b&gt;0,60&lt;/b&gt; → &lt;b&gt;ÖLÇME&lt;/b&gt;&lt;br&gt;&lt;i&gt;0,60&#39;ta çap hatası ~%2,6; 0,90&#39;da ~%11 olurdu&lt;/i&gt;" vertex="1">
+          <mxGeometry height="70" width="560" x="560" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="m4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" value="&lt;b&gt;4) İnce hilal mi?&lt;/b&gt; &lt;span style=&quot;color:#b85450&quot;&gt;(YENİ — 30 Tem 2026)&lt;/span&gt;&lt;br&gt;en/boy &amp;lt; &lt;b&gt;0,60&lt;/b&gt; → &lt;b&gt;ÖLÇME&lt;/b&gt;&lt;br&gt;&lt;i&gt;Küresel sistemde bu şekil, arkadaki parçacığın görünen dilimi demektir.&lt;br&gt;Ölçüldü: 1.696 parçacık (%6,8), ortalamaları foto medyanının %74&#39;ü.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="95" width="560" x="560" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="m5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" value="&lt;b&gt;5) Deseni var mı?&lt;/b&gt; → &lt;b&gt;ÖLÇ&lt;/b&gt;&lt;br&gt;&lt;i&gt;Desen alabilmesi zaten yeterince göründüğünün kanıtı&lt;/i&gt;" vertex="1">
+          <mxGeometry height="55" width="560" x="560" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="m6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" value="&lt;b&gt;6) Yeterince bütün mü?&lt;/b&gt;&lt;br&gt;solidity ≥ &lt;b&gt;0,90&lt;/b&gt; → ÖLÇ · değilse → &lt;b&gt;ÖLÇME&lt;/b&gt;&lt;br&gt;&lt;i&gt;&quot;Komşusu ısırmış&quot; = altta kalmış = çapı eksik okunuyor&lt;/i&gt;" vertex="1">
+          <mxGeometry height="70" width="560" x="560" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="m7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1" value="&lt;b&gt;ÖLÇÜLDÜ&lt;/b&gt;&lt;br&gt;çapı ortalamaya, histograma, D-değerlerine ve&lt;br&gt;sınıf sayımlarına girer" vertex="1">
+          <mxGeometry height="80" width="380" x="240" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="m8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1" value="&lt;b&gt;ÖLÇÜLMEDİ&lt;/b&gt;&lt;br&gt;Measure aracı açıkken &lt;b&gt;mavi&lt;/b&gt; boyanır.&lt;br&gt;Sayıma girer (TOTAL), ölçüme ve sınıf&lt;br&gt;yüzdelerine girmez." vertex="1">
+          <mxGeometry height="80" width="380" x="1060" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="h1" edge="1" parent="1" source="m0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="m1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h2" edge="1" parent="1" source="m1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="m2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h3" edge="1" parent="1" source="m2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="m3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h4" edge="1" parent="1" source="m3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="m4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h5" edge="1" parent="1" source="m4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="m5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h6" edge="1" parent="1" source="m5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="m6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h7" edge="1" parent="1" source="m6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" target="m7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="h8" edge="1" parent="1" source="m6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="m8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="u0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=15;fontStyle=1" value="&lt;b&gt;KULLANICI DÜZELTME KATMANI&lt;/b&gt; — _view_analysis()&lt;br&gt;&lt;i&gt;Ham analiz ASLA değişmez. Düzeltmeler her çizimde üstüne bindirilir.&lt;br&gt;Bu yüzden hiçbir düzeltme eğitim verisini kirletmez.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="80" width="720" x="480" y="920" as="geometry" />
+        </mxCell>
+        <mxCell id="u1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;1–6 tuşları / tıklama&lt;/b&gt;&lt;br&gt;&lt;b&gt;Sınıf ata&lt;/b&gt; (class_overrides)&lt;br&gt;&lt;br&gt;İkinci tık → sınıfı geri al&lt;br&gt;(&quot;ne olduğu belirsiz&quot; durumu)&lt;br&gt;Üçüncü tık → modele geri ver&lt;br&gt;&lt;br&gt;&lt;b&gt;Ölçüm durumunu DEĞİŞTİRMEZ&lt;/b&gt;" vertex="1">
+          <mxGeometry height="160" width="300" x="220" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="u2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;Measure aracı (M)&lt;/b&gt;&lt;br&gt;&lt;b&gt;Sol tık&lt;/b&gt; → ölçüme &lt;b&gt;zorla sok&lt;/b&gt;&lt;br&gt;&lt;b&gt;Sağ tık&lt;/b&gt; → ölçümden &lt;b&gt;çıkar&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;i&gt;Ölçüme müdahalenin&lt;br&gt;TEK yolu budur&lt;/i&gt;&lt;br&gt;&lt;br&gt;&lt;span style=&quot;color:#b85450&quot;&gt;&lt;b&gt;Yeniden Analyze bunları SİLER&lt;/b&gt;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="160" width="300" x="560" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="u3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;0 tuşu&lt;/b&gt;&lt;br&gt;&lt;b&gt;Tamamen ele&lt;/b&gt; (view_excluded)&lt;br&gt;&lt;br&gt;Parçacık silinmez; modelin&lt;br&gt;kendi elediklerİ gibi işaretlenir:&lt;br&gt;sınıfsız + ölçümsüz + mavi&lt;br&gt;&lt;br&gt;&lt;i&gt;Yeniden analizde korunur&lt;/i&gt;" vertex="1">
+          <mxGeometry height="160" width="300" x="900" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="u4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;⌘Z&lt;/b&gt;&lt;br&gt;Çoklu geri alma&lt;br&gt;(son 100 adım)&lt;br&gt;&lt;br&gt;Her düzeltmeden önce&lt;br&gt;durumun anlık görüntüsü&lt;br&gt;alınır" vertex="1">
+          <mxGeometry height="160" width="260" x="1240" y="1050" as="geometry" />
+        </mxCell>
+        <mxCell id="uh1" edge="1" parent="1" source="u0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" target="u1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uh2" edge="1" parent="1" source="u0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" target="u2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uh3" edge="1" parent="1" source="u0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" target="u3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uh4" edge="1" parent="1" source="u0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" target="u4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4n1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;Yeniden Analyze edince ne olur?&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;KORUNUR:&lt;/b&gt; sınıf atamalarınız (1–6), tamamen eledikleriniz (0)&lt;br&gt;&lt;b&gt;SİLİNİR:&lt;/b&gt; Measure aracıyla yaptığınız sol/sağ tıklar&lt;br&gt;&lt;br&gt;&lt;i&gt;Gerekçe: &quot;yeniden analiz&quot; = &quot;bu fotoğrafa yeni kurallarla baştan karar ver&quot;.&lt;br&gt;Ölçüm kapısı da baştan çalışsın diye eski elle müdahaleler temizlenir.&lt;br&gt;&lt;b&gt;Bu yüzden ölçülen parçacık sayısı yeniden analiz sonrası ARTABİLİR.&lt;/b&gt;&lt;/i&gt;" vertex="1">
+          <mxGeometry height="150" width="720" x="480" y="1260" as="geometry" />
+        </mxCell>
+        <mxCell id="p4n2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Kalan yanlılık (ölçüldü, kabul edildi)&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Kadraj kesme:&lt;/b&gt; büyük parçacık daha sık kesilir → elenirler.&lt;br&gt;Tarafsız kestirimle ortalama medyan &lt;b&gt;+%2,35&lt;/b&gt; daha yüksek çıkıyor&lt;br&gt;(en kötü fotoğrafta +%6,6).&lt;br&gt;&lt;br&gt;&lt;b&gt;Sınıfa bağlı eleme:&lt;/b&gt; desenli ve undercooled parçacıklar kapıyı&lt;br&gt;%98–99 geçiyor, desensiz katılar sadece %41.&lt;br&gt;→ ölçülen küme katı aleyhine seçilmiş oluyor." vertex="1">
+          <mxGeometry height="180" width="380" x="1180" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="p4n3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Neden 0,90?&lt;/b&gt;&lt;br&gt;14 fotoğraf / 7.306 parçacıkta ölçüldü:&lt;br&gt;0,85 → %86,5 ölçülür&lt;br&gt;0,88 → %83,5&lt;br&gt;&lt;b&gt;0,90 → %80,0&lt;/b&gt; ← seçilen&lt;br&gt;0,92 → %75,3 &lt;i&gt;(burada ilk kez desenli&lt;br&gt;parçacıklar da düşmeye başlıyor)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="130" width="380" x="1180" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="p4n4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;Sınıf ve ölçüm neden ayrı?&lt;/b&gt;&lt;br&gt;Bir parçacığın deseni belli olabilir ama&lt;br&gt;çapı güvenilmez olabilir (arkada duruyor).&lt;br&gt;Tersi de mümkün.&lt;br&gt;&lt;br&gt;Bu yüzden &quot;lamellar&quot; demek onu&lt;br&gt;ölçüme &lt;b&gt;sokmaz&lt;/b&gt;; ölçümden çıkarmak da&lt;br&gt;sınıfını &lt;b&gt;bozmaz&lt;/b&gt;." vertex="1">
+          <mxGeometry height="150" width="330" x="180" y="330" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page5" name="5 · Sayılar ve Grafikler">
+    <mxGraphModel dx="1600" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p5t" value="&lt;b&gt;SAYILAR NEREDEN GELİYOR?&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;RESULTS panelindeki her kutucuğun ve her grafiğin tanımı&lt;/span&gt;" style="text;html=1;align=center;fontSize=22;" vertex="1" parent="1">
+          <mxGeometry x="450" y="20" width="900" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="r0" value="&lt;b&gt;Seçili fotoğraf(lar)ın parçacıkları&lt;/b&gt;&lt;br&gt;&lt;i&gt;Birden fazla fotoğraf seçiliyse parçacıklar tek havuzda birleştirilir (Aggregate)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="620" y="110" width="560" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" value="&lt;b&gt;TOTAL&lt;/b&gt;&lt;br&gt;tespit edilen&lt;br&gt;her parçacık" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="200" y="230" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="&lt;b&gt;MEASURED&lt;/b&gt;&lt;br&gt;measurable() kapısını geçenler&lt;br&gt;&lt;i&gt;bütün boyut istatistiklerinin tabanı&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="740" y="230" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="&lt;b&gt;CLASSIFIED&lt;/b&gt;&lt;br&gt;ölçülenlerden bir sınıfa girenler&lt;br&gt;= undercooled + 4 desen&lt;br&gt;&lt;i&gt;yanındaki % = MEASURED&#39;a oranı&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="230" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" value="&lt;b&gt;MEASURED − CLASSIFIED&lt;/b&gt; farkı ne?&lt;br&gt;• desensiz katılar (ağ deseni okuyamadı)&lt;br&gt;• &quot;sınıfı belirsiz&quot; işaretledikleriniz&lt;br&gt;&lt;i&gt;Ölçülüyorlar ama hiçbir sınıf yüzdesine girmiyorlar.&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="330" width="320" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" value="&lt;b&gt;SINIF KUTUCUKLARI&lt;/b&gt; — hepsi MEASURED üzerinden hesaplanır&lt;br&gt;&lt;br&gt;&lt;b&gt;UNDERCOOLED&lt;/b&gt; = ölçülen, katı olmayan&lt;br&gt;&lt;b&gt;SOLID&lt;/b&gt; = MEASURED − undercooled − &quot;belirsiz&quot;&lt;br&gt;&lt;b&gt;JANUS / STRIPE / LAMELLAR / COMPOSITE&lt;/b&gt; = kendi desenleri&lt;br&gt;&lt;br&gt;&lt;i&gt;SOLID bir ÜST kategoridir: 4 deseni de kapsar.&lt;br&gt;Bu yüzden satır toplamı &lt;b&gt;%100&#39;ü geçer&lt;/b&gt; — kasıtlı.&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="620" y="380" width="560" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="r6" value="&lt;b&gt;Değişmez kural (kod garantisi)&lt;/b&gt;&lt;br&gt;undercooled + solid + belirsiz = &lt;b&gt;MEASURED&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;i&gt;Ekrandaki kutucuklar ve export edilen figür&lt;br&gt;&lt;b&gt;aynı fonksiyondan&lt;/b&gt; besleniyor (report.class_counts),&lt;br&gt;bu yüzden birbirinden ayrılamazlar.&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;align=left;spacingLeft=8;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="390" width="360" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="r7" value="&lt;b&gt;MEAN SIZE&lt;/b&gt;&lt;br&gt;ölçülenlerin&lt;br&gt;aritmetik ortalaması" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="200" y="600" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r8" value="&lt;b&gt;HİSTOGRAM&lt;/b&gt;&lt;br&gt;ölçülenlerin boyut dağılımı&lt;br&gt;&lt;i&gt;yuvarlak aralıklara bölünür&lt;br&gt;(5/10/20/50/100... nm)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="500" y="600" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r9" value="&lt;b&gt;CUMULATIVE&lt;/b&gt;&lt;br&gt;D10 / D50 / D90 / SPAN&lt;br&gt;&lt;i&gt;SPAN = (D90−D10) / D50&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="800" y="600" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r10" value="&lt;b&gt;PATTERN × SIZE&lt;/b&gt;&lt;br&gt;her boyut aralığının&lt;br&gt;sınıf kompozisyonu&lt;br&gt;&lt;i&gt;(%100 yığılmış şerit)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="600" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r11" value="&lt;b&gt;PNG EXPORT&lt;/b&gt;&lt;br&gt;seçilen grafikler + sayı kutucukları&lt;br&gt;+ isteğe bağlı SEM görselleri&lt;br&gt;&lt;i&gt;(ölçüm çizgili / sınıf renkli / desen renkli)&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="760" width="560" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="k1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" edge="1" parent="1" source="r0" target="r1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" edge="1" parent="1" source="r0" target="r2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" edge="1" parent="1" source="r2" target="r3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" edge="1" parent="1" source="r2" target="r5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="r5" target="r7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="r5" target="r8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="r5" target="r9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=1;dashed=1;" edge="1" parent="1" source="r5" target="r10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" edge="1" parent="1" source="r8" target="r11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="k10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" edge="1" parent="1" source="r9" target="r11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5n1" value="&lt;b&gt;D-DEĞERLERİ: SAYI-AĞIRLIKLI&lt;/b&gt; &lt;span style=&quot;color:#b85450&quot;&gt;(makale için kritik)&lt;/span&gt;&lt;br&gt;&lt;br&gt;Buradaki D50 = &quot;parçacıkların yarısı bu çapın altında&quot; — her parçacık &lt;b&gt;bir&lt;/b&gt; sayılır.&lt;br&gt;&lt;br&gt;Zetasizer / lazer difraksiyon varsayılan olarak &lt;b&gt;HACİM-ağırlıklı&lt;/b&gt; verir (her parçacık d³ sayılır).&lt;br&gt;&lt;br&gt;Sizin verinizde ölçüldü: &lt;b&gt;Dn50 = 259 nm&lt;/b&gt; ↔ &lt;b&gt;Dv50 = 1216 nm&lt;/b&gt; → &lt;b&gt;4,7 kat fark&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;i&gt;Görüntü analizi ancak sayı-ağırlıklı verebilir; bu doğru ve savunulabilir.&lt;br&gt;Sadece makalede &lt;b&gt;&quot;number-based&quot;&lt;/b&gt; olduğu açıkça yazılmalı ve Zetasizer&lt;br&gt;değerleriyle yan yana konmamalı.&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="440" y="900" width="920" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="p5n2" value="&lt;b&gt;Havuzlama uyarısı&lt;/b&gt;&lt;br&gt;Birden fazla fotoğraf seçilince parçacıklar&lt;br&gt;&lt;b&gt;tek havuza&lt;/b&gt; atılır — yani çok parçacıklı bir&lt;br&gt;fotoğraf sonucu domine eder.&lt;br&gt;&lt;br&gt;Örnek: UÖ-05 Alt&#39;ta fotoğraflar&lt;br&gt;169 / 538 / 2990 parçacık veriyor.&lt;br&gt;&lt;br&gt;&lt;i&gt;Makalede &quot;n=3 görüntü, ortalama ± SD&quot; isteniyorsa&lt;br&gt;fotoğraf başına ayrı ortalama almak gerekir.&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="760" width="330" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="p5n3" value="&lt;b&gt;Büyütme etkisi (ölçüldü)&lt;/b&gt;&lt;br&gt;Aynı numunenin farklı büyütmedeki&lt;br&gt;fotoğrafları &lt;b&gt;2 kata kadar&lt;/b&gt; farklı&lt;br&gt;ortalama veriyor (319 → 619 nm).&lt;br&gt;&lt;br&gt;Sebep tespit tabanı değil; yüksek&lt;br&gt;büyütmede büyük parçacıkların&lt;br&gt;kadraja sığmaması + alan seçimi.&lt;br&gt;&lt;br&gt;&lt;i&gt;→ Karşılaştırılacak numuneler&lt;br&gt;&lt;b&gt;aynı büyütmede&lt;/b&gt; çekilmeli.&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="740" width="330" height="200" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page6" name="6 · Eğitim Döngüsü + Depolama">
+    <mxGraphModel dx="1147" dy="631" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1800" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="p6t" parent="1" style="text;html=1;align=center;fontSize=22;" value="&lt;b&gt;EĞİTİM DÖNGÜSÜ ve VERİ DEPOLAMA&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:13px&quot;&gt;Modeli siz eğitiyorsunuz; hangi analizin hangi model sürümüyle yapıldığı takip ediliyor&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="900" x="450" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" value="&lt;b&gt;1. Training moduna geç&lt;/b&gt;&lt;br&gt;Bir fotoğrafta parçacıklara tıklayarak&lt;br&gt;&lt;b&gt;doğru sınıfı&lt;/b&gt; öğret&lt;br&gt;(1–6 tuşları · 0 = &quot;bu güvenilmez&quot;)" vertex="1">
+          <mxGeometry height="100" width="320" x="120" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" value="&lt;b&gt;2. &quot;Add to training set&quot;&lt;/b&gt;&lt;br&gt;Fotoğraf onaylanır ve masaüstündeki&lt;br&gt;&lt;b&gt;SEM Eğitim&lt;/b&gt; klasörüne yazılır" vertex="1">
+          <mxGeometry height="90" width="320" x="120" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;~/Desktop/SEM Eğitim/&lt;/b&gt; &lt;i&gt;(görünür klasör)&lt;/i&gt;&lt;br&gt;&lt;br&gt;Her onaylı fotoğraf için:&lt;br&gt;• &lt;b&gt;.jpeg&lt;/b&gt; — orijinalin kopyası&lt;br&gt;• &lt;b&gt;(etiketli).png&lt;/b&gt; — onayladığınız görüntü&lt;br&gt;• &lt;b&gt;.labels.json&lt;/b&gt; — parçacık başına sınıf + konum + çap&lt;br&gt;• &lt;b&gt;.crops.npz&lt;/b&gt; — eğitime hazır 128px kırpımlar&lt;br&gt;• &lt;b&gt;.vis.npz&lt;/b&gt; — görünürlük etiketleri (henüz kullanılmıyor)&lt;br&gt;&lt;br&gt;&lt;i&gt;Şu an: &lt;b&gt;32 fotoğraf / 15.803 etiket&lt;/b&gt;&lt;/i&gt;" vertex="1">
+          <mxGeometry height="200" width="440" x="120" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;3. &quot;Train model&quot;&lt;/b&gt; — pattern_train.py&lt;br&gt;&lt;br&gt;• Tüm .crops.npz dosyaları birleştirilir&lt;br&gt;• &lt;b&gt;Fotoğraf-gruplu 3-kat çapraz doğrulama&lt;/b&gt;&lt;br&gt;&lt;i&gt;(aynı fotoğrafın parçacıkları hem eğitimde hem&lt;br&gt;testte olamaz — dürüst skor için şart)&lt;/i&gt;&lt;br&gt;• Sonra tüm veriyle nihai model eğitilir&lt;br&gt;• resnet18, 128px, veri artırma (döndürme/parlaklık)" vertex="1">
+          <mxGeometry height="200" width="460" x="660" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" value="&lt;b&gt;4. Yeni patternnet.pt&lt;/b&gt;&lt;br&gt;Uygulama veri klasörüne yazılır&lt;br&gt;&lt;i&gt;(eski model zaman damgalı yedek olarak saklanır)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="80" width="340" x="1240" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" value="&lt;b&gt;5. Pipeline damgası değişir&lt;/b&gt;&lt;br&gt;&lt;i&gt;(model dosyasının kimliği damgaya giriyor)&lt;/i&gt;&lt;br&gt;&lt;br&gt;→ sol paneldeki &lt;b&gt;bütün noktalar amber olur&lt;/b&gt;&lt;br&gt;= &quot;bu analizler eski modelle yapıldı&quot;" vertex="1">
+          <mxGeometry height="110" width="340" x="1240" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="t7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" value="&lt;b&gt;6. Yeniden Analyze&lt;/b&gt;&lt;br&gt;Maskeler önbellekte olduğu için ~10 s/fotoğraf&lt;br&gt;→ nokta &lt;b&gt;yeşile&lt;/b&gt; döner" vertex="1">
+          <mxGeometry height="80" width="340" x="1240" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="q1" edge="1" parent="1" source="t1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="t2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" edge="1" parent="1" source="t2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="t3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="q3" edge="1" parent="1" source="t3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="t4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="q4" edge="1" parent="1" source="t4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="t5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="q5" edge="1" parent="1" source="t5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="t6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="q6" edge="1" parent="1" source="t6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeWidth=2;" target="t7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;solidnet EĞİTİLMİYOR&lt;/b&gt;&lt;br&gt;&quot;Train model&quot; sadece &lt;b&gt;patternnet&lt;/b&gt;&#39;i eğitir.&lt;br&gt;Katı/undercooled ayrımını yapan solidnet&lt;br&gt;uygulamayla gelen sabit modeldir.&lt;br&gt;&lt;br&gt;&lt;i&gt;Yeniden eğitmek denendi ve reddedildi:&lt;br&gt;yüksek duyarlılık bölgesinde mevcut modeli&lt;br&gt;geçemiyor (ölçülmüş sonuç).&lt;/i&gt;" vertex="1">
+          <mxGeometry height="140" width="460" x="660" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="t9" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=8;" value="&lt;b&gt;undercooled etiketleri patternnet&#39;e gitmez&lt;/b&gt;&lt;br&gt;Ağ yalnızca 4 desen sınıfını öğrenir; undercooled&lt;br&gt;etiketleri .labels.json&#39;da kayıt olarak kalır.&lt;br&gt;&lt;br&gt;&lt;i&gt;Zayıf sınıf: composite (en az örnek).&lt;br&gt;Gerçek kazanç = daha çok composite örneği.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="120" width="440" x="120" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="st0" parent="1" style="text;html=1;align=center;fontSize=18;fontStyle=1" value="&lt;b&gt;KALICI DOSYALAR&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="400" x="700" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="st1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;session.pkl&lt;/b&gt; &lt;i&gt;(~200 MB)&lt;/i&gt;&lt;br&gt;Tüm analizler (maskeler + piksel verisi dahil)&lt;br&gt;+ sınıf düzeltmeleriniz + ölçüm müdahaleleriniz&lt;br&gt;&lt;br&gt;&lt;i&gt;Her kayıtta bir öncekisi .bak olarak saklanır&lt;/i&gt;" vertex="1">
+          <mxGeometry height="110" width="400" x="120" y="960" as="geometry" />
+        </mxCell>
+        <mxCell id="st2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;library.json&lt;/b&gt;&lt;br&gt;Sol paneldeki sanal klasör ağacı&lt;br&gt;&lt;i&gt;(diskteki dosyalar asla taşınmaz)&lt;/i&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;3 katmanlı yedek:&lt;/b&gt; .bak (bir önceki) ·&lt;br&gt;.startup.json (oturum açılışı) ·&lt;br&gt;.shrink.json (görüntü sayısı düştüğü an)" vertex="1">
+          <mxGeometry height="140" width="400" x="560" y="960" as="geometry" />
+        </mxCell>
+        <mxCell id="st3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;mask_cache/&lt;/b&gt;&lt;br&gt;Cellpose maskeleri (.npz) + kalibrasyon (.scale.json)&lt;br&gt;&lt;i&gt;Dosya yolu + değişim tarihi + boyutla anahtarlanır&lt;/i&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;Yeniden analizi 50 s → 10 s yapan şey budur.&lt;/b&gt;&lt;br&gt;&lt;i&gt;Silinirse veri kaybolmaz, sadece yavaşlar.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="140" width="400" x="1000" y="960" as="geometry" />
+        </mxCell>
+        <mxCell id="st4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;patternnet.pt&lt;/b&gt;&lt;br&gt;Eğittiğiniz model + zaman damgalı yedekleri&lt;br&gt;&lt;i&gt;Uygulama veri klasöründe&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="1440" y="960" as="geometry" />
+        </mxCell>
+        <mxCell id="st5" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;align=left;spacingLeft=10;" value="&lt;b&gt;En sağlam veriniz hangisi?&lt;/b&gt;&lt;br&gt;&lt;b&gt;~/Desktop/SEM Eğitim&lt;/b&gt; klasörü — session.pkl&#39;den tamamen bağımsız,&lt;br&gt;düz dosyalar hâlinde, elle yedeklenebilir. Uygulama silinse bile eğitim veriniz durur.&lt;br&gt;&lt;i&gt;session.pkl bozulursa analizleri yeniden çalıştırmak gerekir ama etiketleriniz kaybolmaz.&lt;/i&gt;" vertex="1">
+          <mxGeometry height="90" width="1000" x="400" y="1140" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
