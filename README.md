@@ -10,8 +10,6 @@ came from the image's own info bar.*
 
 **Aim:** To replace the manual work done by imageJ such as scaling the bar, measuring the particles' diameter, deciding the mean radius by eye and of course reducing a one afternoon work to few seconds.
 
----
-
 ⚠️ This is only trained for BiSn (bismuth–tin) colloidal particles on two specific scanning electron microscopes. Therefore different materials and different instruments will result in wrong results. 
 
 The **size measurement** is more portable than the classification (it is
@@ -20,8 +18,6 @@ Cellpose finding particles that look like these.
 
 If you want it for your own system, that is what **Training mode** is for —
 label your own particles and retrain the pattern network on them.
-
----
 
 ## What it does
 
