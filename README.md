@@ -129,9 +129,17 @@ pattern network: a patterned particle that the gate calls undercooled never
 reaches the pattern classifier at all. Stripe is the weakest class (recall
 0.65), and composite is the rarest in training (644 crops vs. 4547 for janus).
 
-## Install and run
+## Download and run
 
-You need **Python 3.11–3.13** and about **6 GB of free disk**.
+**macOS (Apple Silicon) — no Python, no terminal:** take the zip from
+[**Releases**](https://github.com/EfeUtku0/SEM-Particle-Analyzer/releases/latest),
+unzip it, drag the app into Applications, and on the **first launch right-click
+it → Open → Open** (a plain double-click gets refused: the app is unsigned).
+Everything it needs is inside the bundle, including the models — it never asks
+for the internet.
+
+**Anywhere else — from source.** You need **Python 3.11–3.13** and about **6 GB
+of free disk**:
 
 ```bash
 git clone https://github.com/EfeUtku0/SEM-Particle-Analyzer.git
@@ -142,12 +150,10 @@ python3 -m venv .venv
 ```
 
 Afterwards just double-click **`run.command`** (macOS) or **`run.bat`**
-(Windows).
-
-**The first analysis downloads ~1.3 GB** of model weights (Cellpose `cpsam`,
-EasyOCR) into your home folder, once. It also takes a minute or two while
-PyTorch warms up. Every analysis after that takes seconds, and none of them
-need the internet.
+(Windows). Run from source and **the first analysis downloads ~1.3 GB** of model
+weights (Cellpose `cpsam`, EasyOCR) into your home folder, once — the packaged
+build has them already. Either way the first analysis takes a minute or two
+while PyTorch warms up; every one after that takes seconds.
 
 | | status |
 |---|---|
@@ -155,19 +161,22 @@ need the internet.
 | macOS, Intel | not supported: PyTorch no longer ships wheels for it |
 | Windows / Linux, x86-64 | should work from source; Cellpose falls back to the CPU without an NVIDIA card, which makes the first pass slow but correct |
 
-There is no prebuilt download at the moment. The one that used to sit under
-Releases was built in July 2026 — older code, older models, and it misread the
-second microscope — so it was removed rather than left there to mislead. Making
-one is a single command (see *Building a distributable app* below).
+There is no prebuilt Windows or Intel-Mac download: PyInstaller does not
+cross-compile, so each one has to be built on the platform it runs on (see
+*Building a distributable app* below).
 
 ### Türkçe kısa kılavuz
 
-Yukarıdaki dört komutu Terminal'e sırayla yapıştırman yeterli. Sonrasında klasör
-içindeki **`run.command`** dosyasına çift tıklayarak açarsın (ilk seferde macOS
-"izin vermedi" derse: sağ tık → Aç → Aç).
+**Mac kullanıyorsan (M1–M4) kod bilmene gerek yok:** yukarıdaki
+[Releases](https://github.com/EfeUtku0/SEM-Particle-Analyzer/releases/latest)
+bağlantısından zip'i indir, çift tıkla, çıkan uygulamayı Applications'a sürükle.
+**İlk açılışta çift tıklama — sağ tık → Aç → Aç de.** (Çift tıklarsan macOS
+"açılamıyor" der; uygulama bozuk değil, imzasız olduğu için böyle davranıyor.
+Bunu bir kez yapman yeterli.) Uygulama 8 örnek fotoğrafla açılır, birine
+**Analyze** demen yeter.
 
-**İlk analiz yavaştır ve internet ister** — parçacık bulma modelini (~1,3 GB)
-bir kez indirir. Sonraki analizler saniyeler sürer, internet gerekmez.
+**İlk analiz 1-2 dakika sürer** (model ısınıyor), sonrakiler saniyeler. Paketli
+sürüm internet istemez; kaynaktan kurarsan ilk analizde ~1,3 GB model iner.
 
 Uygulama **BiSn parçacıkları** için eğitildi; başka bir malzemenin fotoğrafını
 verirsen sana yine bir sayı üretir ama o sayı yanlıştır. Kendi malzemen için
