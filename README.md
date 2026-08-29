@@ -145,7 +145,7 @@ It is entirely local: your labels go to a `SEM Eğitim` folder (Desktop on macOS
 Documents elsewhere) and the retrained model to your own data folder. Nobody
 else's copy is affected.
 
-⚠️ **A retrained model replaces the one that ships with the app.** The bundled
+**A retrained model replaces the one that ships with the app.** The bundled
 one was trained on 8185 hand-labelled particles across 53 photographs; retrain
 on a handful of your own and the results get *worse* for reasons that will not
 be obvious. Retrain when you have labelled seriously. To go back to the bundled
