@@ -27,6 +27,7 @@ import analyze
 import smartsort
 import training_store
 from image_files import IMG_EXT, _importable_path
+from ui_theme import keys
 from widget_library_tree import (ROLE_PATH, ROLE_KIND, ROLE_MISSING, ROLE_FRESH,
                                  ROLE_TRAIN, FRESH_NONE, FRESH_CURRENT,
                                  FRESH_STALE, TR_NONE, TR_NEW, TR_SAVED,
@@ -101,12 +102,28 @@ class LibraryPanel:
         back to Qt's dialog if PyObjC isn't available. Nothing on disk is moved
         or renamed — the library only ever references these files."""
         paths = _native_pick()
-        if paths is None:                       # PyObjC unavailable
-            paths, _ = QtWidgets.QFileDialog.getOpenFileNames(
-                self, "Import images", "",
-                "Images (*.jpeg *.jpg *.png *.tif *.tiff *.bmp)")
+        if paths is None:                       # not macOS, or PyObjC unavailable
+            paths = self._qt_pick()
         if paths:
             self._on_external_drop(paths, self._drop_target())
+
+    def _qt_pick(self):
+        """Windows/Linux: Qt's file dialog picks files OR a folder, never both
+        at once, so the button first asks which (a folder used to be importable
+        only by dragging it in)."""
+        menu = QtWidgets.QMenu(self)
+        act_files = menu.addAction("Images…")
+        act_dir = menu.addAction("A whole folder…")
+        chosen = menu.exec(self.cursor().pos())
+        if chosen is act_files:
+            pats = " ".join("*" + e for e in IMG_EXT)
+            paths, _ = QtWidgets.QFileDialog.getOpenFileNames(
+                self, "Import images", "", f"Images ({pats})")
+            return paths
+        if chosen is act_dir:
+            d = QtWidgets.QFileDialog.getExistingDirectory(self, "Import a folder")
+            return [d] if d else []
+        return []
 
     def _on_external_drop(self, paths, target):
         """A Finder drop: folders come in as new virtual folders, loose files as
@@ -1030,7 +1047,7 @@ class LibraryPanel:
                     + (f", and the {n_an} analysis/analyses among them are kept "
                        "— put the photos back and their analyses come with them"
                        if n_an else "")
-                    + ".\n\n⌘Z undoes this.",
+                    + keys(".\n\n⌘Z undoes this."),
                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
                     QtWidgets.QMessageBox.No) != QtWidgets.QMessageBox.Yes:
                 return

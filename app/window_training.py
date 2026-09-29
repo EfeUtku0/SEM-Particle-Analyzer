@@ -30,6 +30,7 @@ import golden_store
 from overlay_draw import PATTERN_COLORS, TRAIN_COLORS, GREEN, UNMEASURED
 from window_pattern_size import ClassSizeWindow
 from background_workers import TrainWorker, SaturationWorker
+from ui_theme import keys
 from widget_library_tree import (FRESH_STALE, TR_NONE, TR_NEW, TR_SAVED,
                                  TR_EDITED)
 
@@ -60,7 +61,7 @@ class TrainingMode:
             self.status.showMessage(
                 "Training mode — pick a class in Adjustments (1–6, 0 = exclude), "
                 "click particles; the View checkboxes filter classes; "
-                "Space hides the overlay; ⌘Z undoes.")
+                + keys("Space hides the overlay; ⌘Z undoes."))
         else:
             self.status.showMessage("Training mode off.")
             self._refresh_results()

@@ -50,7 +50,9 @@ def matplotlib_family(path=SOURCE_SERIF, family=SERIF_FAMILY):
 # to the nearest face that ships a real bold.
 _SF_VAR = "/System/Library/Fonts/SFNS.ttf"
 _UI_FAMILY = "SEMPA UI"
-_UI_FALLBACKS = ("Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans")
+# Windows draws Qt's panels in Segoe UI, so a chart that reproduces a bit of UI
+# uses it there (it ships real Semibold/Bold faces). Not installed on a Mac.
+_UI_FALLBACKS = ("Segoe UI", "Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans")
 _ui_family = None
 
 

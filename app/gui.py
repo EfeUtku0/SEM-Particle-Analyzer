@@ -21,7 +21,7 @@ from PySide6 import QtCore, QtWidgets
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _bootstrap  # noqa: F401  (sets model paths / SSL before heavy imports)
-from ui_theme import STYLE, _checkmark_png
+from ui_theme import STYLE, _checkmark_png, keys
 from window_library import LibraryPanel
 from window_results import ResultsPanel
 from window_particle_edit import ParticleEditor
@@ -125,8 +125,8 @@ class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, sear
         self.busy.setFixedWidth(280)
         self.busy.setVisible(False)
         self.status.addPermanentWidget(self.busy)
-        self.status.showMessage("Ready — select image(s) and press Analyze.  "
-                                "In the image: pinch / ⌘+scroll to zoom, ⌘0 to fit.")
+        self.status.showMessage(keys("Ready — select image(s) and press Analyze.  "
+                                     "In the image: pinch / ⌘+scroll to zoom, ⌘0 to fit."))
         self._update_class_controls(None)
         # a click anywhere outside the size-range boxes lets go of them — without
         # this a QLineEdit keeps focus until you tab away, so you can never leave
@@ -196,7 +196,27 @@ class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, sear
         return super().eventFilter(obj, ev)
 
 
+def _log_when_windowless():
+    """A windowed Windows build (console=False) has no stdout/stderr: print()
+    goes nowhere and a traceback is lost. Send both to a log in the data
+    folder instead (the previous run's stays as sem.log.1), which is also where
+    the self-test result can be read."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        from paths import data_dir
+        log = os.path.join(data_dir(), "sem.log")
+        if os.path.exists(log):
+            os.replace(log, log + ".1")
+        f = open(log, "w", encoding="utf-8", buffering=1)
+        sys.stdout = sys.stdout or f
+        sys.stderr = sys.stderr or f
+    except OSError:
+        pass
+
+
 def main():
+    _log_when_windowless()
     # headless self-test for verifying the packaged bundle end-to-end
     if os.environ.get("SEMPA_SELFTEST"):
         from analyze import analyze_image
@@ -241,7 +261,13 @@ def main():
     # application fonts, so its own self-check refuses the family anyway, and
     # baking three faces would cost ~5 s on a first launch for nothing.)
     f = app.font()
-    f.setPointSize(13); app.setFont(f)
+    # 13 pt on macOS is 13 px, which every size in the QSS is tuned to; Windows
+    # counts points at 96 dpi, where 13 pt would be 17 px and overflow the panels.
+    if sys.platform == "darwin":
+        f.setPointSize(13)
+    else:
+        f.setPixelSize(13)
+    app.setFont(f)
     check = _checkmark_png().replace("\\", "/")
     app.setStyleSheet(STYLE.replace("CHECKMARK", check))
     w = MainWindow()

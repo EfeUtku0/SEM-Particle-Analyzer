@@ -13,8 +13,21 @@ cards around it.
 from __future__ import annotations
 
 import os
+import sys
 
 from PySide6 import QtCore, QtGui, QtWidgets
+
+
+def keys(text: str) -> str:
+    """Shortcut names as the user's keyboard spells them.
+
+    Help texts are written the Mac way ("⌘Z", "⌘ + scroll"); Qt already maps
+    those shortcuts to Ctrl on Windows and Linux, so only the words need to
+    follow: "Ctrl+Z", "Ctrl + scroll". On macOS the text is returned untouched.
+    """
+    if sys.platform == "darwin":
+        return text
+    return text.replace("⌘ + ", "Ctrl + ").replace("⌘+", "Ctrl+").replace("⌘", "Ctrl+")
 
 
 STYLE = """

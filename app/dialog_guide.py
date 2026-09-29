@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from PySide6 import QtWidgets
 
+from ui_theme import keys
+
 
 class GuideDialog(QtWidgets.QDialog):
     """A one-screen manual of the controls a first-time user can't guess. Kept
@@ -142,8 +144,8 @@ class GuideDialog(QtWidgets.QDialog):
                 f"{k('Space')} hides the whole overlay — colours and borders — so "
                 f"you see the raw micrograph; press it again to bring back "
                 f"exactly what the View bar has ticked.",
-                f"Zoom with a trackpad pinch or {k('⌘ + scroll')}, drag to pan, "
-                f"and {k('⌘0')} to fit the image back into the view. "
+                f"Zoom with a trackpad pinch or {k(keys('⌘ + scroll'))}, drag to pan, "
+                f"and {k(keys('⌘0'))} to fit the image back into the view. "
                 f"(Double-click does nothing on purpose — labelling clicks the "
                 f"same particle twice all the time.)",
             ]),
@@ -183,7 +185,7 @@ class GuideDialog(QtWidgets.QDialog):
                 f"shown in red so you can see your own call. Ticking "
                 f"{k('Solid')} in the View bar also reddens the pattern-less "
                 f"solids the model itself couldn't read.",
-                f"{k('⌘Z')} steps back through your corrections — press it "
+                f"{k(keys('⌘Z'))} steps back through your corrections — press it "
                 f"repeatedly to undo several. It also puts back anything you "
                 f"removed from the image list; removing a photo never deletes "
                 f"its analysis, so re-adding it brings the analysis along.",

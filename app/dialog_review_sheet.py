@@ -14,6 +14,7 @@ import review_queue
 from analyze import DEFAULT_FACET_THRESH
 from chart_data import CLASS_LABELS
 from widget_tiles import CropTile
+from ui_theme import keys
 
 
 class ReviewDialog(QtWidgets.QDialog):
@@ -124,8 +125,8 @@ class ReviewDialog(QtWidgets.QDialog):
 
         self.btn_prev = QtWidgets.QPushButton("◀  Back")
         self.btn_all = QtWidgets.QPushButton("Select page")
-        self.btn_all.setToolTip("⌘A — select the crops on THIS page only, then "
-                                "one class key re-labels them")
+        self.btn_all.setToolTip(keys("⌘A — select the crops on THIS page only, then "
+                                     "one class key re-labels them"))
         self.lbl_sel = QtWidgets.QLabel()
         self.lbl_sel.setStyleSheet("color:#2b6fff;font-size:12px;font-weight:700;"
                                    "background:transparent;")

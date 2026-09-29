@@ -188,7 +188,8 @@ PyInstaller does not cross-compile — build on the platform you are targeting:
 
 - macOS → `dist/SEM Particle Analyzer.app`, zip it with
   `ditto -c -k --keepParent "dist/SEM Particle Analyzer.app" app-macos.zip`
-- Windows → `dist/SEM Particle Analyzer/`, zip the whole folder
+- Windows → `dist/SEM Particle Analyzer/`, zip the whole folder. The full
+  Windows checklist (run, test, build, self-test): [docs/windows.md](docs/windows.md)
 
 The build embeds the Cellpose and EasyOCR weights from `~/.cellpose` and
 `~/.EasyOCR`, so the packaged app needs no downloads. If the spec prints

@@ -11,6 +11,8 @@ on self.right_stack) and MainWindow.__init__ assembles them.
 """
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -1012,9 +1014,12 @@ class WindowLayout:
                          ("0", "exclude")):
             sc = QtGui.QShortcut(QtGui.QKeySequence(key), self)
             sc.activated.connect(lambda c=cls: self._key_class(c))
-        # ⌘W hides the window like the red button (SessionStore.closeEvent)
-        sc = QtGui.QShortcut(QtGui.QKeySequence.Close, self)
-        sc.activated.connect(self.close)
+        # ⌘W hides the window like the red button (SessionStore.closeEvent).
+        # macOS only: elsewhere closing the window quits the app, and Ctrl+W
+        # quitting it by accident is not what anyone means by that key.
+        if sys.platform == "darwin":
+            sc = QtGui.QShortcut(QtGui.QKeySequence.Close, self)
+            sc.activated.connect(self.close)
         sc = QtGui.QShortcut(QtGui.QKeySequence("M"), self)
         sc.activated.connect(lambda: self._key_class("measure"))
         sc = QtGui.QShortcut(QtGui.QKeySequence("C"), self)
