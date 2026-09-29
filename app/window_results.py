@@ -20,6 +20,7 @@ import numpy as np
 from PySide6 import QtCore, QtWidgets
 
 import chart_data
+from widget_library_tree import ROLE_KIND
 import charts
 from analyze import Aggregate, ensure_perimeter
 from overlay_draw import render, render_training
@@ -33,14 +34,38 @@ class ResultsPanel:
     """Mixin: the RESULTS panel and preview rendering. `self` is the window."""
 
 
+    def _default_title(self):
+        """What the chart / file is called unless the user types otherwise
+        (user request, 2026-09-27: "most of the time I save it under the
+        file's own name"): the photo's name for one photo, the folder's name
+        for a selected folder, the common start of the names for several."""
+        items = self.tree.selectedItems()
+        if len(items) == 1 and items[0].data(0, ROLE_KIND) != "image":
+            return items[0].text(0).strip()
+        sel = self._selected_paths() or ([self.current] if self.current else [])
+        stems = [os.path.splitext(os.path.basename(p))[0] for p in sel]
+        if not stems:
+            return ""
+        if len(stems) == 1:
+            return stems[0]
+        return os.path.commonprefix(stems).rstrip(" -_")
+
     def _open_save_menu(self):
         """Drop the save menu under the Save button, right-aligned to it."""
+        # the title box offers the default name, but never over something the
+        # user typed: it is refilled only while it still holds the last
+        # default (or nothing), so clearing it brings the default back
+        box = self.ex_title
+        if box.text().strip() in ("", getattr(self, "_title_auto", "")):
+            self._title_auto = self._default_title()
+            box.setText(self._title_auto)
         m = self._save_menu
         x = self.save_btn.width() - m.sizeHint().width()
         pos = self.save_btn.mapToGlobal(QtCore.QPoint(x, self.save_btn.height() + 4))
         m.popup(pos)
 
     def _update_class_controls(self, a):
+        self._update_scale_chip()      # every change of photo passes through here
         ok = bool(a and a.classifiable)
         for wdg in (self.cb_under, self.cb_solid):
             wdg.setEnabled(ok)
@@ -178,12 +203,34 @@ class ResultsPanel:
             self.status.showMessage(
                 f"Measured the roundness of {filled} particles in "
                 f"{len(sel)} earlier analysis(es).")
+        # A photo with no scale has no sizes — and, since the solid call needs
+        # a size too, no trustworthy classes either. It used to be charted as
+        # every particle at 0 nm (a single bar over a 0-5 nm axis, "mean 0 nm")
+        # and, worse, pooled into a multi-photo selection, dragging the mean
+        # down. It is now left out, and the panel says so.
+        unscaled = [p for p in sel if p in self.results
+                    and not self.results[p].nm_per_px]
         analyzed = [self._view_analysis(self.results[p], p)
-                    for p in sel if p in self.results]
+                    for p in sel if p in self.results and p not in unscaled]
         if not analyzed:
             self._result_target = None
             self._update_chips(None)
-            self.result.clear_img(); return
+            self.result.clear_img()
+            if unscaled:
+                self.result.setText(
+                    "No scale on this photo, so no sizes yet.\n\n"
+                    "The scale bar could not be read. Click the red scale "
+                    "label above the photo to set it by hand."
+                    if len(unscaled) == 1 else
+                    f"None of these {len(unscaled)} photos has a scale, so there "
+                    f"are no sizes yet.\n\nOpen each one and click the red "
+                    f"scale label above it to set the scale by hand.")
+            return
+        if unscaled:
+            names = ", ".join(os.path.basename(p) for p in unscaled[:3])
+            more = f" and {len(unscaled) - 3} more" if len(unscaled) > 3 else ""
+            self.status.showMessage(
+                f"Left out of the results — no scale: {names}{more}")
         self._result_target = analyzed[0] if len(analyzed) == 1 else Aggregate(analyzed)
         self._update_chips(self._result_target)
         # Debounced: the matplotlib render takes a noticeable moment, and this
@@ -382,42 +429,34 @@ class ResultsPanel:
     # ---- Solid / Liquid tab (the stacked size histogram) ----
     def _refresh_split(self):
         """Tiles and the range readout now, the chart through the debounce."""
-        g = getattr(self, "_res_split", {}) or {}
-        T = self.split_tiles
-        if not g:
-            for t in T.values():
-                t.set(val="—", sub="")
-            self._update_split_readout()
-            self._split_timer.start(120)
-            return
-        ns, nu = int(g["solid"].size), int(g["undercooled"].size)
-        tot = ns + nu
-        T["solid"].set(val=f"{100.0 * ns / tot:.0f}%", sub=f"{ns}",
-                       accent=chart_data.STAT_SOLID_COLOR)
-        T["undercooled"].set(val=f"{100.0 * nu / tot:.0f}%", sub=f"{nu}",
-                             accent=CLASS_COLORS["undercooled"])
-        T["meansolid"].set(val=f"{g['solid'].mean():.0f}", sub="nm")
-        T["meanunder"].set(val=f"{g['undercooled'].mean():.0f}", sub="nm")
-        self._set_sph_tile(T["sphsolid"], state="solid")
-        self._set_sph_tile(T["sphunder"], state="undercooled")
+        # every value from chart_data.split_tiles — the one the exported figure
+        # draws — so the panel and a saved chart cannot quote different numbers
+        rows = chart_data.split_tiles(getattr(self, "_result_target", None))
+        keys = ["solid", "undercooled", "mean", "d10", "d50", "d90"]
+        for key, (_cap, val, sub, accent) in zip(keys, [c for r in rows[:2] for c in r]):
+            self.split_tiles[key].set(val=val, sub=sub, accent=accent)
         self._update_split_readout()
         # 120 ms like the other pages: the figure is drawn AT the view's aspect,
         # which is only final after the layout pass that follows showing the page
         self._split_timer.start(120)
 
     def _update_split_readout(self):
-        """"Of the particles in the typed range, this share is solid" — the
-        number the stacked bars can only be eyeballed for."""
-        g = getattr(self, "_res_split", {}) or {}
-        if not g or self.size_range is None:
+        """The same readout as the All tab's: what share of the measured
+        particles falls inside the typed range.
+
+        2026-09-27 (user request — the figure goes to colleagues, who ask how
+        much of the sample is in the range): this used to read "…% solid" of
+        the particles in the range. Same particles as the All tab
+        (diam_array(whole_only=True)), so the two pages quote one number."""
+        target = getattr(self, "_result_target", None)
+        d = (target.diam_array(whole_only=True) if target is not None
+             else np.array([]))
+        if d.size == 0 or self.size_range is None:
             self.split_pct.setText(""); self.split_cnt.setText("")
             return
-        frac, k, tot = chart_data.solid_share(g, *self.size_range)
-        if frac is None:                     # nothing of either state in there
-            self.split_pct.setText("—"); self.split_cnt.setText("(0 particles)")
-            return
-        self.split_pct.setText(f"{100.0 * frac:.0f}% solid")
-        self.split_cnt.setText(f"({k} / {tot})")
+        k, n, _ = chart_data.range_share(d, *self.size_range)
+        self.split_pct.setText(chart_data.share_text(k, n))
+        self.split_cnt.setText(f"({k})")
 
     def _render_split(self):
         if self.result_filter != "solidsplit":
@@ -609,13 +648,8 @@ class ResultsPanel:
             self.range_pct.setText("")       # nothing typed -> no readout at all
             self.range_cnt.setText("")
             return
-        m = np.ones(d.shape, bool)
-        if lo is not None:
-            m &= d >= lo
-        if hi is not None:
-            m &= d < hi
-        k = int(m.sum())
-        self.range_pct.setText(f"{100.0 * k / d.size:.0f}%")
+        k, n, _ = chart_data.range_share(d, lo, hi)
+        self.range_pct.setText(chart_data.share_text(k, n))
         self.range_cnt.setText(f"({k})")
 
     # The chart fills the whole space above the tile block (which is a fixed
@@ -685,6 +719,16 @@ class ResultsPanel:
         if not analyzed:
             QtWidgets.QMessageBox.information(self, "Info", "Analyze image(s) first.")
             return
+        # the same rule as the panel: a photo with no scale has no sizes, and a
+        # saved figure of every particle at 0 nm is worse than no figure
+        unscaled = [a.image for a in analyzed if not a.nm_per_px]
+        analyzed = [a for a in analyzed if a.nm_per_px]
+        if not analyzed:
+            QtWidgets.QMessageBox.information(
+                self, "No scale",
+                "The selected photo(s) have no scale, so there is nothing to "
+                "export yet. Click the red scale label above the photo to set it.")
+            return
         types = [t for cb, t in [(self.ex_line, "line"),
                                  (self.ex_under, "undercooled"),
                                  (self.ex_pattern, "pattern")] if cb.isChecked()]
@@ -704,6 +748,13 @@ class ResultsPanel:
             QtWidgets.QMessageBox.critical(self, "Export failed", traceback.format_exc())
             return
         folder = os.path.dirname(next(iter(out.values()))) if out else d
-        QtWidgets.QMessageBox.information(
-            self, "Exported",
-            f"{len(out)} file(s) saved to folder:\n{os.path.basename(folder)}/")
+        # 2026-09-27 (user request): no "N file(s) saved" dialog after every
+        # save — the status bar says it quietly. A dialog is kept only for what
+        # the user must hear: photos left out for having no scale.
+        self.status.showMessage(
+            f"{len(out)} file(s) saved to {os.path.basename(folder)}/", 8000)
+        if unscaled:
+            QtWidgets.QMessageBox.information(
+                self, "Exported",
+                f"{len(out)} file(s) saved to folder:\n{os.path.basename(folder)}/"
+                f"\n\nLeft out — no scale: {', '.join(unscaled)}")

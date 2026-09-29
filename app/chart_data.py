@@ -249,15 +249,11 @@ def stat_tiles(target, cls_filter=None, size_range=None):
     if cls_filter not in groups:
         cls_filter = None
     measured = cc["measured"]
+    # `size_range` is NOT applied here. It used to be, which made an exported
+    # MEAN SIZE the mean of the typed range while the app's tile (the one this
+    # mirrors) showed the whole distribution. What the range holds is stated
+    # on its own, by range_sentence(), under the chart.
     d = groups[cls_filter] if cls_filter else target.diam_array(whole_only=True)
-    if size_range:
-        lo, hi = size_range
-        m = np.ones(d.shape, bool)
-        if lo is not None:
-            m &= d >= lo
-        if hi is not None:
-            m &= d < hi
-        d = d[m]
     n = int(d.size)
     mean = (f"{d.mean():.0f}", "nm") if n else ("—", "")
     rng = (f"{d.min():.0f} – {d.max():.0f}", "nm") if n else ("—", "")
@@ -300,6 +296,69 @@ def stat_tiles(target, cls_filter=None, size_range=None):
              ("MEASURED", f"{measured}", mshare, None),
              sphericity_tile(target)],
             [("MEAN SIZE", *mean, None), ("RANGE", *rng, None)]]
+
+
+def range_share(d, lo=None, hi=None):
+    """(k, n, in-range diameters): how many of `d` fall in [lo, hi).
+
+    ONE definition for the readout beside the Size range boxes and the sentence
+    drawn under an exported chart. Either end may be None (open)."""
+    d = np.asarray(d, float)
+    m = np.ones(d.shape, bool)
+    if lo is not None:
+        m &= d >= lo
+    if hi is not None:
+        m &= d < hi
+    return int(m.sum()), int(d.size), d[m]
+
+
+def share_text(k, n):
+    """'23%', but '<1%' rather than a misleading '0%' when something is there,
+    and '>99%' rather than '100%' when something is missing."""
+    if not n:
+        return "\u2014"
+    pct = 100.0 * k / n
+    if 0 < pct < 0.5:
+        return "<1%"
+    if 99.5 <= pct < 100:
+        return ">99%"
+    return f"{pct:.0f}%"
+
+
+def range_sentence(d, lo=None, hi=None, cls=None):
+    """The size range as a sentence for the exported report, split into runs of
+    (text, emphasis) so the drawing can set the share and the range in bold:
+
+        23% of the measured particles (492 of 2138) are between 100 and
+        150 nm, with a mean size of 124 nm.
+
+    `cls` names the class when the chart is one class on its own. Returns None
+    when there is no range or nothing to count."""
+    if lo is None and hi is None:
+        return None
+    k, n, inside = range_share(d, lo, hi)
+    if not n:
+        return None
+    # at most one decimal, none when whole: "120", "120.5", never "485.402"
+    f = lambda v: f"{v:.1f}".rstrip("0").rstrip(".")
+    if lo is not None and hi is not None:
+        where = f"between {f(lo)} and {f(hi)} nm"
+    elif lo is not None:
+        where = f"{f(lo)} nm or larger"
+    else:
+        where = f"smaller than {f(hi)} nm"
+    # non-breaking spaces: the range is one phrase and must not wrap mid-way
+    where = where.replace(" ", "\u00a0")
+    who = f"{CLASS_LABELS[cls].lower()} particles" if cls else "measured particles"
+    are = "is" if k == 1 else "are"
+    runs = [(share_text(k, n), True),
+            (f" of the {who} ({k} of {n}) {are} ", False),
+            (where, True)]
+    if k:
+        runs.append((f", with a mean size of {inside.mean():.0f} nm.", False))
+    else:
+        runs.append((".", False))
+    return runs
 
 
 def d_values(diams):
@@ -378,25 +437,6 @@ SPLIT_LABELS = {"solid": "Solid", "undercooled": "Undercooled"}
 SPLIT_ORDER = ["solid", "undercooled"]
 
 
-def solid_share(groups, lo=None, hi=None):
-    """(share of solids, n solid, n total) inside [lo, hi) — the question the
-    size-range box on the Solid / Liquid page asks. Bounds are the same
-    half-open convention the rest of the panel uses (lo inclusive, hi exclusive),
-    and either may be None for open-ended."""
-    def cut(d):
-        d = np.asarray(d, float)
-        m = np.ones(d.shape, bool)
-        if lo is not None:
-            m &= d >= lo
-        if hi is not None:
-            m &= d < hi
-        return int(m.sum())
-    ns = cut(groups.get("solid", np.array([])))
-    nu = cut(groups.get("undercooled", np.array([])))
-    tot = ns + nu
-    return (ns / tot if tot else None), ns, tot
-
-
 def majority_solid_above(groups, min_n=20):
     """The smallest diameter from which the particles are MOSTLY solid.
 
@@ -423,36 +463,36 @@ def majority_solid_above(groups, min_n=20):
     return float(d[idx[0]]) if idx.size else None
 
 
-def split_tiles(target, size_range=None):
+def split_tiles(target):
     """The tile rows under the Solid / Liquid chart — same shape as
-    stat_tiles(), so the app and an exported figure show the same numbers."""
+    stat_tiles(), so the app and an exported figure show the same numbers.
+
+    2026-09-27 (user request — colleagues ask for the ratio and the size, not
+    a per-state breakdown): the share of each state, then ONE mean and the
+    D-values of the whole measured set. The mean and the D-values are taken
+    over exactly the particles the All and Cumulative tabs use
+    (diam_array(whole_only=True)), so the three tabs quote the same numbers.
+    The per-state means and the per-state sphericity are gone from this page."""
     groups = solid_split(target) if target is not None else {}
+    d = target.diam_array(whole_only=True) if target is not None else np.array([])
+    dv = d_values(d)
+    mean = (f"{np.mean(d):.0f}", "nm") if d.size else ("—", "")
+    drow = ([("D10", f"{dv['d10']:.0f}", "nm", None),
+             ("D50", f"{dv['d50']:.0f}", "nm", None),
+             ("D90", f"{dv['d90']:.0f}", "nm", None)] if dv else
+            [("D10", "—", "", None), ("D50", "—", "", None), ("D90", "—", "", None)])
     if not groups:
         return [[("SOLID", "—", "", STAT_SOLID_COLOR),
-                 ("UNDERCOOLED", "—", "", CLASS_COLORS["undercooled"])]]
+                 ("UNDERCOOLED", "—", "", CLASS_COLORS["undercooled"]),
+                 ("MEAN", *mean, None)], drow]
     ns = int(groups["solid"].size)
     nu = int(groups["undercooled"].size)
     tot = ns + nu
-    ms = groups["solid"].mean()
-    mu = groups["undercooled"].mean()
-    frac, k, kt = solid_share(groups, *(size_range or (None, None)))
-    # two per row, mirroring the panel: solid on the left, undercooled on the
-    # right, so the pairs are read across
-    # The last row was MOSTLY SOLID ABOVE + CLASSIFIED; it now carries the
-    # sphericity of each state (user request, 2026-08-08), which keeps the whole
-    # block reading as solid-vs-undercooled pairs — share, mean size, roundness.
-    # (majority_solid_above() is kept: the crossover diameter is still the point
-    # of the chart above, it is simply not quoted as a tile any more.)
-    rows = [[("SOLID", f"{100.0 * ns / tot:.0f}%", f"{ns}", STAT_SOLID_COLOR),
-             ("UNDERCOOLED", f"{100.0 * nu / tot:.0f}%", f"{nu}",
-              CLASS_COLORS["undercooled"])],
-            [("MEAN SOLID", f"{ms:.0f}", "nm", None),
-             ("MEAN UNDERCOOLED", f"{mu:.0f}", "nm", None)],
-            [sphericity_tile(target, state="solid", cap="SPHERICITY SOLID"),
-             sphericity_tile(target, state="undercooled",
-                             cap="SPHERICITY UNDERCOOLED")]]
-    if size_range:
-        rows.append([("SOLID IN RANGE",
-                      (f"{100.0 * frac:.0f}%" if frac is not None else "—"),
-                      f"{k} / {kt} particles", STAT_SOLID_COLOR)])
+    # share_text: 14 solids in 2995 read "<1%", never a "0%" beside the 14
+    rows = [[("SOLID", share_text(ns, tot), f"{ns}", STAT_SOLID_COLOR),
+             ("UNDERCOOLED", share_text(nu, tot), f"{nu}",
+              CLASS_COLORS["undercooled"]),
+             ("MEAN", *mean, None)],
+            drow]
     return rows
+

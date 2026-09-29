@@ -33,6 +33,24 @@ class Worker(QtCore.QThread):
             self.failed.emit(self.path, traceback.format_exc())
 
 
+class CallWorker(QtCore.QThread):
+    """Runs one short blocking call off the GUI thread (reading a scale bar:
+    EasyOCR takes seconds the first time it loads). Same retirement rule as
+    the others — MainWindow._retire_worker, never a dropped reference."""
+    done = QtCore.Signal(object)
+    failed = QtCore.Signal(str)
+
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+
+    def run(self):
+        try:
+            self.done.emit(self.fn())
+        except Exception:
+            self.failed.emit(traceback.format_exc())
+
+
 class TrainWorker(QtCore.QThread):
     """Runs the in-app patternnet retraining off the GUI thread.
 

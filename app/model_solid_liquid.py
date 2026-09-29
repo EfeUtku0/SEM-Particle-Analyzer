@@ -13,7 +13,9 @@ from __future__ import annotations
 import os
 
 import numpy as np
-import cv2
+# cv2 is imported where it is used (make_crop): analyze.pipeline_stamp imports
+# this module for the weights' path on every launch, and OpenCV is ~0.2 s and
+# tens of MB the window has no use for until something is analysed
 
 SIZE = 64
 _BUNDLED = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -62,6 +64,7 @@ def _get_net():
 
 def make_crop(gray, masks, label_id, bbox, nm_per_px):
     """Must stay bit-identical to tools/train_cnn.py::make_crop."""
+    import cv2
     y0, x0, y1, x1 = bbox
     h, w = y1 - y0, x1 - x0
     side = int(max(h, w) * 1.25)

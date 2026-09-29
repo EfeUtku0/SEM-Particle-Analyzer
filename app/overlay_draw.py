@@ -36,6 +36,107 @@ TRAIN_COLORS = {**PATTERN_COLORS, "undercooled": GREEN,
                 "solid": RED, "excluded": GREY, "exclude": GREY}
 
 
+# ---- per-photo caches -------------------------------------------------------
+# Every click on a particle redraws the whole overlay, and three parts of that
+# redraw never change between clicks: the micrograph itself (it was decoded from
+# disk on every click, ~19 ms), the particle borders (find_boundaries over the
+# full mask, ~24 ms) and which pixels belong to a particle at all. Kept here for
+# the last few photos so a click only pays for the colours. Measured on a
+# 3361-particle photo (2026-09-24): 135-170 ms a click before.
+#
+# The mask entries are keyed on the mask OBJECT (held, so its id cannot be
+# reused). Masks are only edited in place while a session is being loaded
+# (analyze.apply_count_floors), before anything is drawn; anything that ever
+# edits a drawn mask in place must call forget_mask() after.
+import os
+import threading
+from collections import OrderedDict
+
+_CACHE_N = 4
+_cache_lock = threading.Lock()
+_base_cache = OrderedDict()     # (path, mtime_ns, size) -> RGB array
+_mask_cache = OrderedDict()     # id(mask) -> (mask, _MaskIndex)
+
+
+def _remember(cache, key, value):
+    cache[key] = value
+    cache.move_to_end(key)
+    while len(cache) > _CACHE_N:
+        cache.popitem(last=False)
+
+
+def _base_rgb(path):
+    """The micrograph as a fresh, writable RGB array (a copy of the cached one)."""
+    st = os.stat(path)
+    key = (path, st.st_mtime_ns, st.st_size)
+    with _cache_lock:
+        arr = _base_cache.get(key)
+        if arr is not None:
+            _base_cache.move_to_end(key)
+    if arr is None:
+        arr = np.asarray(Image.open(path).convert("RGB"))
+        arr.flags.writeable = False
+        with _cache_lock:
+            _remember(_base_cache, key, arr)
+    return arr.copy()
+
+
+class _MaskIndex:
+    """Flat indices of the particle pixels and of the border pixels, with the
+    particle id under each, so a colour pass indexes only those pixels instead
+    of looking every pixel of the image up in a table."""
+
+    def __init__(self, masks):
+        from skimage.segmentation import find_boundaries
+        flat = masks.ravel()
+        self.fg = np.flatnonzero(flat)
+        self.fg_ids = flat[self.fg]
+        self.border = np.flatnonzero(find_boundaries(masks, mode="thick"))
+        self.border_ids = flat[self.border]
+
+
+def _mask_index(masks):
+    key = id(masks)
+    with _cache_lock:
+        hit = _mask_cache.get(key)
+        if hit is not None and hit[0] is masks:
+            _mask_cache.move_to_end(key)
+            return hit[1]
+    ix = _MaskIndex(masks)
+    with _cache_lock:
+        _remember(_mask_cache, key, (masks, ix))
+    return ix
+
+
+def forget_mask(masks):
+    """Drop the cached borders of a mask that was edited in place."""
+    with _cache_lock:
+        _mask_cache.pop(id(masks), None)
+
+
+def _tint(flat, idx, colour, keep, add):
+    """flat[idx] = keep*flat[idx] + add*colour, pixel for pixel what the old
+    `region[m] = (keep*region[m] + add*col[m]).astype(uint8)` gave. The two
+    weights are passed as written at each call site, not as 1-a: 1-0.32 is
+    0.6799999999999999, which is not the 0.68 the fill has always used."""
+    if idx.size:
+        flat[idx] = (keep * flat[idx] + add * colour).astype(np.uint8)
+
+
+def _region_flat(arr, masks):
+    """The mask-sized corner of `arr` as an (N, 3) pixel array, and a function
+    that writes it back (a no-op when the reshape was already a view)."""
+    h, w = masks.shape
+    region = arr[:h, :w]
+    flat = region.reshape(-1, 3)
+    if np.shares_memory(flat, arr):
+        return flat, lambda: None
+
+    def put_back():
+        arr[:h, :w] = flat.reshape(h, w, 3)
+    return flat, put_back
+
+
 def pick_spread(particles, k=5, rng=None):
     """Pick k clean particles spanning the size range, one per size band.
 
@@ -127,18 +228,17 @@ def render_training(analysis, labels, show_overlay=True, chosen=None,
     judge fine contrast that the tint would hide).
     `chosen` particles get a cyan diameter line drawn on top — the Measure tool
     works in training mode too."""
-    from skimage.segmentation import find_boundaries
-    base = Image.open(analysis.path).convert("RGB")
+    arr = _base_rgb(analysis.path)
     masks = analysis.label_mask
     if not show_overlay or masks is None:
-        im = base
+        im = Image.fromarray(arr)
         dr = ImageDraw.Draw(im)
         if chosen:
             _draw_measurements(im, dr, chosen, font_scale)
         if certainty:
             _draw_certainty(im, dr, certainty, font_scale)
         return im
-    arr = np.asarray(base).copy()
+    ix = _mask_index(masks)
     nmax = int(masks.max())
     lut = np.zeros((nmax + 1, 3), np.uint8)
     fill = np.zeros(nmax + 1, bool)
@@ -152,8 +252,7 @@ def render_training(analysis, labels, show_overlay=True, chosen=None,
             continue
         lut[pid] = col
         fill[pid] = True
-    h, w = masks.shape
-    region = arr[:h, :w]
+    flat, put_back = _region_flat(arr, masks)
     # "not measured" first, so an explicit user label still paints over it
     unmeas = np.zeros(nmax + 1, bool)
     if mark_unmeasured:
@@ -161,23 +260,19 @@ def render_training(analysis, labels, show_overlay=True, chosen=None,
         for p in analysis.particles:
             if 0 < p.id <= nmax and not measurable(p):
                 unmeas[p.id] = not fill[p.id]
-        mu = (masks > 0) & unmeas[masks]
         a = UNMEASURED_ALPHA
-        region[mu] = ((1 - a) * region[mu]
-                      + a * np.array(UNMEASURED)).astype(np.uint8)
-    m = (masks > 0) & fill[masks]
-    col = lut[masks]
+        _tint(flat, ix.fg[unmeas[ix.fg_ids]], np.array(UNMEASURED), 1 - a, a)
+    sel = fill[ix.fg_ids]
     # lighter tint than the results overlay (0.32) so the particle's own
     # texture stays clearly readable while labelling
-    region[m] = (0.80 * region[m] + 0.20 * col[m]).astype(np.uint8)
+    _tint(flat, ix.fg[sel], lut[ix.fg_ids[sel]], 0.80, 0.20)
     # Only labelled particles get a ring — the same thin dark outline the
     # normal-mode overlay draws around coloured particles. Detected-but-unlabelled
     # particles are left bare (no grey segmentation frame), so training and normal
     # views match: just tinted fills, no mesh of outlines over everything.
     # The unmeasured ones are ringed too, exactly as the normal view rings them.
-    b = find_boundaries(masks, mode="thick")
-    region[b & (fill | unmeas)[masks]] = INK
-    arr[:h, :w] = region
+    flat[ix.border[(fill | unmeas)[ix.border_ids]]] = INK
+    put_back()
     # no in-image legend here: the class buttons in the training panel already
     # show the colours, and the legend card would cover clickable particles
     im = Image.fromarray(arr)
@@ -206,11 +301,13 @@ def render(analysis, show_measurements=True, show_classification=False,
     statistics grey (same way a class is tinted), so with the Measure tool the
     user can see at a glance what is and isn't being measured.
     """
-    from skimage.segmentation import find_boundaries
-    base = Image.open(analysis.path).convert("RGB")
-    arr = np.asarray(base).copy()
+    arr = _base_rgb(analysis.path)
     masks = analysis.label_mask
     colour_fill = (show_classification or show_pattern) and analysis.classifiable
+    need_index = masks is not None and (
+        colour_fill or mark_unmeasured or show_outlines)
+    ix = _mask_index(masks) if need_index else None
+    flat, put_back = _region_flat(arr, masks) if need_index else (None, None)
 
     # Only ever draw labels that are actual counted particles. Guards against a
     # mask that still holds filtered-out specks (older analyses) so the Borders
@@ -269,13 +366,9 @@ def render(analysis, show_measurements=True, show_classification=False,
                     continue
                 lut[p.id] = RED if p.is_solid else GREEN
             fill_ids[p.id] = True
-        h, w = masks.shape
-        m = (masks > 0) & fill_ids[masks]
-        col = lut[masks]
-        region = arr[:h, :w]
+        sel = fill_ids[ix.fg_ids]
         # keep the tint light so the particle's own morphology stays readable
-        region[m] = (0.68 * region[m] + 0.32 * col[m]).astype(np.uint8)
-        arr[:h, :w] = region
+        _tint(flat, ix.fg[sel], lut[ix.fg_ids[sel]], 0.68, 0.32)
 
     # (excluded/dim and unmeasurable particles are NOT tinted in the class/pattern
     # overlay — a slate tint there reads as "stripe" and confuses. They're only
@@ -292,24 +385,18 @@ def render(analysis, show_measurements=True, show_classification=False,
         unmeasured = np.zeros(int(masks.max()) + 1, bool)
         for p in analysis.particles:
             unmeasured[p.id] = not measurable(p)
-        h, w = masks.shape
-        m = (masks > 0) & unmeasured[masks]
-        region = arr[:h, :w]
         a = UNMEASURED_ALPHA
-        region[m] = ((1 - a) * region[m] + a * np.array(UNMEASURED)).astype(np.uint8)
-        arr[:h, :w] = region
+        _tint(flat, ix.fg[unmeasured[ix.fg_ids]], np.array(UNMEASURED), 1 - a, a)
 
-    if (show_outlines or colour_fill or mark_unmeasured) and masks is not None:
-        b = find_boundaries(masks, mode="thick") & valid[masks]
+    if need_index:
+        on = valid[ix.border_ids]
         # when only some classes are filled, outline just those (not every particle)
         if colour_fill and not show_outlines and fill_ids is not None:
-            b = b & fill_ids[masks]
+            on &= fill_ids[ix.border_ids]
         elif mark_unmeasured and not show_outlines and not colour_fill:
-            b = b & unmeasured[masks]       # only ring what's greyed out
-        h, w = masks.shape
-        sub = arr[:h, :w]
-        sub[b] = INK if (colour_fill or mark_unmeasured) else (255, 60, 60)
-        arr[:h, :w] = sub
+            on &= unmeasured[ix.border_ids]     # only ring what's greyed out
+        flat[ix.border[on]] = INK if (colour_fill or mark_unmeasured) else (255, 60, 60)
+        put_back()
 
     im = Image.fromarray(arr)
     dr = ImageDraw.Draw(im)

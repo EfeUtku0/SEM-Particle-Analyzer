@@ -41,6 +41,35 @@ from window_layout import WindowLayout
 # below is for reading, not for resolution.
 
 
+def _prewarm_in_background():
+    """Import the drawing libraries on a background thread once the window is up.
+
+    They are kept out of startup on purpose (see charts.py and analyze.py), but
+    that moved the cost onto the FIRST photo clicked: matplotlib 0.5 s,
+    scikit-image 0.3 s and the first chart, about 1 s in which the window did
+    not respond (measured 2026-09-24). Loading them while the user is still
+    looking at the library pays it where nobody waits. Imports only: they are
+    safe to race with the main thread (the import lock serialises them), which
+    the font baking in fonts.py would not be."""
+    import threading
+
+    def work():
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot  # noqa: F401
+            import matplotlib.patches  # noqa: F401
+            # the NAMES, not the packages: skimage loads lazily, so a bare
+            # `import skimage.segmentation` loads nothing and the first click
+            # still paid for scipy.ndimage and the rest
+            from skimage.segmentation import find_boundaries  # noqa: F401
+            from skimage.measure import regionprops  # noqa: F401
+        except Exception:
+            pass                        # the real import will report it
+
+    threading.Thread(target=work, name="prewarm", daemon=True).start()
+
+
 class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, search
                  ResultsPanel,      # the RESULTS panel and the preview redraw
                  ParticleEditor,    # click tools: view-only per-particle fixes
@@ -102,10 +131,44 @@ class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, sear
         # a click anywhere outside the size-range boxes lets go of them — without
         # this a QLineEdit keeps focus until you tab away, so you can never leave
         QtWidgets.QApplication.instance().installEventFilter(self)
+        # the Dock icon brings a hidden window back (see _app_state_changed)
+        QtWidgets.QApplication.instance().applicationStateChanged.connect(
+            self._app_state_changed)
         # reserve the tile-block height once styling is applied
         QtCore.QTimer.singleShot(0, self._lock_stat_height)
-        # bring back the previous session's analyses once the window is up
-        QtCore.QTimer.singleShot(0, self._boot)
+        # The session is restored once the window has been SHOWN and drawn
+        # properly — see showEvent / _settle_then_boot.
+        self._booted = False
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if not self._booted:
+            self._booted = True
+            QtCore.QTimer.singleShot(0, self._settle_then_boot)
+
+    def _settle_then_boot(self):
+        """Lay the window out and draw it ONCE, completely, before restoring
+        the session — which holds the main thread for a second or so.
+
+        It used to be a zero-timer queued in __init__, so it ran on the very
+        first turn of the event loop, before the photo card had set its height
+        (AspectCard does that in its own resize, one layout pass later). For
+        that second the window showed the half-built layout: no photo, the
+        "Change to …" grid stretched over the whole middle column (user
+        report, 2026-09-27: "opens on a silly screen"). The layout needs two
+        passes to settle (card width -> card height -> the rest), so it is run
+        until nothing moves, then painted synchronously."""
+        app = QtWidgets.QApplication.instance()
+        lay = self.centralWidget().layout()
+        for _ in range(4):
+            lay.activate()
+            app.sendPostedEvents()
+            app.processEvents(QtCore.QEventLoop.ExcludeUserInputEvents)
+        self.repaint()
+        self._boot()
+        # …and only then load what the first click will need: racing the
+        # restore for the interpreter just made both slower
+        _prewarm_in_background()
 
     def _lock_stat_height(self):
         """Freeze the tile block to its tallest (3-row 'all') layout so the chart
@@ -119,6 +182,10 @@ class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, sear
             self._update_stats()
 
     def eventFilter(self, obj, ev):
+        if ev.type() == QtCore.QEvent.Quit:
+            # ⌘Q / Dock Quit / logout: the close that follows is a real one
+            # (see SessionStore.closeEvent — anything else only hides)
+            self._quitting = True
         if ev.type() == QtCore.QEvent.MouseButtonPress:
             fw = self.focusWidget()
             if isinstance(fw, QtWidgets.QLineEdit):
@@ -139,6 +206,15 @@ def main():
         print(f"SELFTEST: {s['count_total']} particles, mean {s['mean']:.0f} nm, "
               f"det {a.detector}, solid {s['n_solid']}")
         render_report(a)
+        # the export path too: baked UI/title faces, the size-range card and
+        # the Display P3 tag are all things a frozen build can lose
+        img = render_report(a, stats=True, title="Self-test",
+                            size_range=(s["mean"], None))
+        out = os.environ.get("SEMPA_SELFTEST_OUT")
+        if out:
+            from export_files import save_png
+            save_png(img, out)
+            print(f"SELFTEST export -> {out}")
         print("SELFTEST OK")
         return
 

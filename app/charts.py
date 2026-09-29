@@ -10,12 +10,11 @@ never opens a chart.
 """
 from __future__ import annotations
 
-import io
-
 import numpy as np
 from PIL import Image
 
-from fonts import matplotlib_family, matplotlib_ui_family, ROBOTO
+from fonts import (matplotlib_family, matplotlib_ui_family,
+                   matplotlib_title_family, ROBOTO)
 from chart_data import (BG, INK, MUT, PLOT, HIST_FILL, HIST_EDGE,
                         RANGE_FILL, RANGE_EDGE,
                         CLASS_ORDER, CLASS_LABELS, CLASS_COLORS, CLASS_EDGES,
@@ -23,33 +22,98 @@ from chart_data import (BG, INK, MUT, PLOT, HIST_FILL, HIST_EDGE,
                         SPLIT_ORDER, SPLIT_COLORS, SPLIT_EDGES, SPLIT_LABELS,
                         _bin_edges, _tick_step, _quiet_corner,
                         class_diams, stat_tiles, d_values, cumulative_tiles,
-                        solid_split, split_tiles)
+                        solid_split, split_tiles, range_sentence)
 
-# the app's own tile styling (gui.py QSS #tile / #tilecap / #tileval / #tilesub),
-# reproduced here so an exported figure looks like the panel it came from
-TILE_BG, TILE_EDGE = "#ffffff", "#e6ebf0"
+# the app's own tile styling (ui_theme QSS #tile / #tilecap / #tileval /
+# #tilesub), reproduced here so an exported figure looks like the panel it came
+# from. The fill is the CARD grey, not the #ffffff the QSS names: measured off a
+# screenshot of the running app (2026-09-24), the tiles show #f4f6f8 inside a
+# #e6ebf0 border, and an export with white cards looked like a different app.
+TILE_BG, TILE_EDGE = BG, "#e6ebf0"
 TILE_CAP_FG, TILE_VAL_FG, TILE_SUB_FG = "#8a95a1", "#1a2129", "#6b7580"
+
+# The tile's geometry in the app's own pixels (the Tile widget: 133 x 47 in a
+# 3-column grid with 6 px gutters). Text positions are MEASURED off the running
+# app (Retina screenshot, halved), not derived from the layout code: caption
+# baseline 17 px below the tile's top, value baseline 36 px, ink 12 px in.
+_TILE_W, _TILE_H, _TILE_GAP, _TILE_COLS = 133.0, 47.0, 6.0, 3
+_TILE_GRID_W = _TILE_COLS * _TILE_W + (_TILE_COLS - 1) * _TILE_GAP
+# SF's hhea ascent/descent per em; Qt centres the value and its note as BOXES,
+# so the smaller note's baseline sits this much above the value's
+_SF_ASC, _SF_DESC = 1980 / 2048, 432 / 2048
+
+
+def _tiles_height(nrows, width_in):
+    """Height (inches) of a block of `nrows` tile rows drawn `width_in` wide.
+
+    The tiles keep the app's proportions whatever the export width: the scale
+    comes from the width of a 3-column row, and the height follows. (It used to
+    be the other way round, a fixed 0.62 in per row, which on a 6 in wide
+    figure made every tile a flat strip with its text looking undersized.)"""
+    if not nrows:
+        return 0.0
+    u = width_in / _TILE_GRID_W
+    return (nrows * _TILE_H + (nrows - 1) * _TILE_GAP) * u
+
+
+def _pixel_axes(fig, rect):
+    """An invisible axes over `rect` whose data units are figure pixels."""
+    ax = fig.add_axes(rect); ax.axis("off"); ax.set_facecolor(BG)
+    w_px = rect[2] * fig.get_size_inches()[0] * fig.dpi
+    h_px = rect[3] * fig.get_size_inches()[1] * fig.dpi
+    ax.set_xlim(0, w_px); ax.set_ylim(0, h_px)
+    return ax, w_px, h_px
+
+
+def _text_w(renderer, s, prop):
+    """Advance width of `s` in pixels (0 for an empty string)."""
+    if not s:
+        return 0.0
+    return renderer.get_text_width_height_descent(s, prop, ismath=False)[0]
+
+
+def _draw_spaced(ax, renderer, x, y, s, prop, spacing, color):
+    """Text with CSS-style letter-spacing (the tile captions have 0.7 px).
+    Matplotlib has no tracking, so each glyph is placed at the width of the
+    prefix before it plus i * spacing, which keeps the font's own kerning."""
+    for i, ch in enumerate(s):
+        if ch.isspace():
+            continue
+        # a prefix ending in a space is measured with a stand-in, because a
+        # trailing space has no ink and would measure short
+        pre = s[:i]
+        w = _text_w(renderer, pre.rstrip(), prop)
+        if pre != pre.rstrip():
+            w += (_text_w(renderer, "x x", prop) - _text_w(renderer, "xx", prop)) \
+                 * (len(pre) - len(pre.rstrip()))
+        ax.text(x + w + i * spacing, y, ch, va="baseline", ha="left",
+                fontproperties=prop, color=color)
+    w = _text_w(renderer, s, prop)
+    return w + max(0, len(s) - 1) * spacing
+
+
+def _ui_prop(size_pt, weight):
+    from matplotlib.font_manager import FontProperties
+    return FontProperties(family=matplotlib_ui_family(), weight=weight, size=size_pt)
 
 
 def _draw_tiles(fig, rect, rows):
     """Paint the tile block into `rect` ([x,y,w,h] in figure fractions).
 
-    Everything is laid out in PIXELS (the axes is given a pixel coordinate
-    system) so the rounded corners stay circular and the proportions are the
-    app's own: a 133x47 tile with an 8px radius, scaled up to export size.
+    Laid out in PIXELS so the rounded corners stay circular, and at the app's
+    own proportions: a 133 x 47 tile, 8 px radius, 6 px gutters, the caption in
+    Heavy 10 px tracked 0.7 px, the value Heavy 15 px, the note Bold 11.5 px.
     """
     import matplotlib.patches as mpatches
-    ui = matplotlib_ui_family()
-    ax = fig.add_axes(rect); ax.axis("off"); ax.set_facecolor(BG)
-    w_px = rect[2] * fig.get_size_inches()[0] * fig.dpi
-    h_px = rect[3] * fig.get_size_inches()[1] * fig.dpi
-    ax.set_xlim(0, w_px); ax.set_ylim(0, h_px)
-
-    nrow = len(rows)
-    gap = 0.10 * h_px / nrow                    # between tiles, both directions
-    th = (h_px - gap * (nrow - 1)) / nrow
-    scale = th / 47.0                           # the app's tile is 47px tall
+    ax, w_px, h_px = _pixel_axes(fig, rect)
+    renderer = fig.canvas.get_renderer()
+    s = w_px / _TILE_GRID_W                     # figure px per app px
     pt = 72.0 / fig.dpi                         # px -> points
+    th, gap = _TILE_H * s, _TILE_GAP * s
+    cap_p = _ui_prop(10.0 * s * pt, 800)
+    val_p = _ui_prop(15.0 * s * pt, 800)
+    sub_p = _ui_prop(11.5 * s * pt, 700)
+    sub_lift = (_SF_ASC - _SF_DESC) / 2 * (15.0 - 11.5) * s
     for ri, row in enumerate(rows):
         ncol = len(row)
         tw = (w_px - gap * (ncol - 1)) / ncol
@@ -58,31 +122,134 @@ def _draw_tiles(fig, rect, rows):
             x0 = ci * (tw + gap)
             ax.add_patch(mpatches.FancyBboxPatch(
                 (x0, y0), tw, th,
-                boxstyle=f"round,pad=0,rounding_size={8.0 * scale}",
-                linewidth=1.0, edgecolor=TILE_EDGE, facecolor=TILE_BG,
+                boxstyle=f"round,pad=0,rounding_size={8.0 * s}",
+                linewidth=1.0 * s * pt, edgecolor=TILE_EDGE, facecolor=TILE_BG,
                 clip_on=False))
-            tx = x0 + 10.0 * scale
-            ax.text(tx, y0 + th * 0.70, cap, va="center", ha="left",
-                    fontsize=10.0 * scale * pt, family=ui, weight="bold",
-                    color=TILE_CAP_FG)
-            t = ax.text(tx, y0 + th * 0.30, val, va="center", ha="left",
-                        fontsize=15.0 * scale * pt, family=ui, weight="bold",
-                        color=accent or TILE_VAL_FG)
+            _draw_spaced(ax, renderer, x0 + 12.0 * s, y0 + th - 17.0 * s,
+                         cap, cap_p, 0.7 * s, TILE_CAP_FG)
+            vy = y0 + th - 36.0 * s
+            ax.text(x0 + 11.5 * s, vy, val, va="baseline", ha="left",
+                    fontproperties=val_p, color=accent or TILE_VAL_FG)
             if sub:
-                fig.canvas.draw()
-                bb = t.get_window_extent(fig.canvas.get_renderer())
-                dx = bb.width * (w_px / ax.get_window_extent().width)
-                ax.text(tx + dx + 7.0 * scale, y0 + th * 0.30, sub,
-                        va="center", ha="left", fontsize=11.5 * scale * pt,
-                        family=ui, weight="bold", color=TILE_SUB_FG)
+                vx = x0 + 11.5 * s + _text_w(renderer, val, val_p)
+                ax.text(vx + 7.0 * s, vy + sub_lift, sub, va="baseline",
+                        ha="left", fontproperties=sub_p, color=TILE_SUB_FG)
+
+
+# ---- the size range, stated in words (exports only) ----
+# In the app the share inside the typed Size range is read off beside the two
+# boxes; a saved figure had only the highlighted bars, which say WHERE the range
+# is but not how much of the sample it holds. This block says it in a sentence,
+# in the same card style as the tiles, with a swatch of the highlight colour so
+# it reads as the key to those bars.
+# app px, as in the tiles: caption baseline below the card's top, first line
+# of the sentence below that, line pitch, and room under the last baseline
+_RNG_CAP_BASE, _RNG_FIRST, _RNG_LINE, _RNG_BOTTOM = 18.0, 19.0, 17.0, 13.0
+_RNG_TEXT = 12.5           # app px, the range readout's own size in the panel
+
+
+def _wrap_runs(runs, width, measure):
+    """Greedy word wrap over (text, bold) runs. Returns lines, each a list of
+    (text, bold). `measure(text, bold)` gives a width in the same units."""
+    words = []                                   # (word, bold, space_after)
+    for text, bold in runs:
+        parts = text.split(" ")
+        for i, w in enumerate(parts):
+            if w:
+                words.append([w, bold, False])
+            if i < len(parts) - 1 and words:
+                words[-1][2] = True
+    lines, cur, cur_w = [], [], 0.0
+    space = measure(" ", False)
+    for w, bold, sp in words:
+        ww = measure(w, bold)
+        lead = space if cur and cur[-1][2] else 0.0
+        if cur and cur_w + lead + ww > width:
+            lines.append(cur); cur, cur_w, lead = [], 0.0, 0.0
+        cur.append([w, bold, sp]); cur_w += lead + ww
+    if cur:
+        lines.append(cur)
+    out = []
+    for ln in lines:
+        segs = []
+        for i, (w, bold, sp) in enumerate(ln):
+            t = w + (" " if sp and i < len(ln) - 1 else "")
+            if segs and segs[-1][1] == bold:
+                segs[-1] = (segs[-1][0] + t, bold)
+            else:
+                segs.append((t, bold))
+        out.append(segs)
+    return out
+
+
+def _range_layout(runs, width_in, dpi):
+    """(lines, height_in) for the size-range card `width_in` wide."""
+    from matplotlib.backends.backend_agg import RendererAgg
+    r = RendererAgg(10, 10, dpi)
+    s = width_in * dpi / _TILE_GRID_W
+    pt = 72.0 / dpi
+    reg, bold = _ui_prop(_RNG_TEXT * s * pt, 600), _ui_prop(_RNG_TEXT * s * pt, 800)
+
+    def measure(t, b):
+        if t == " ":
+            return _text_w(r, "x x", reg) - _text_w(r, "xx", reg)
+        return _text_w(r, t, bold if b else reg)
+    swatch = 22.0 * s
+    lines = _wrap_runs(runs, width_in * dpi - swatch - 24.0 * s, measure)
+    h = (_RNG_CAP_BASE + _RNG_FIRST + (len(lines) - 1) * _RNG_LINE
+         + _RNG_BOTTOM) * s / dpi
+    return lines, h
+
+
+def _draw_range_card(fig, rect, lines, swatch_fill, swatch_edge, accent):
+    """The size-range card: caption, highlight swatch, and the wrapped sentence
+    (share and range in Heavy, the rest in Semibold)."""
+    import matplotlib.patches as mpatches
+    ax, w_px, h_px = _pixel_axes(fig, rect)
+    renderer = fig.canvas.get_renderer()
+    s = w_px / _TILE_GRID_W
+    pt = 72.0 / fig.dpi
+    reg = _ui_prop(_RNG_TEXT * s * pt, 600)
+    bold = _ui_prop(_RNG_TEXT * s * pt, 800)
+    cap_p = _ui_prop(10.0 * s * pt, 800)
+    ax.add_patch(mpatches.FancyBboxPatch(
+        (0, 0), w_px, h_px, boxstyle=f"round,pad=0,rounding_size={8.0 * s}",
+        linewidth=1.0 * s * pt, edgecolor=TILE_EDGE, facecolor=TILE_BG,
+        clip_on=False))
+    x = 12.0 * s
+    y = h_px - _RNG_CAP_BASE * s
+    _draw_spaced(ax, renderer, x, y, "SIZE RANGE", cap_p, 0.7 * s, TILE_CAP_FG)
+    # the swatch is a miniature highlighted bar: its fill and its edge
+    sw = 11.0 * s
+    base0 = y - _RNG_FIRST * s
+    ax.add_patch(mpatches.Rectangle(
+        (x, base0 - 0.5 * s), sw, sw, facecolor=swatch_fill, edgecolor=swatch_edge,
+        linewidth=0.9 * s * pt * 1.6, clip_on=False))
+    tx0 = x + sw + 9.0 * s
+    for li, segs in enumerate(lines):
+        yy = base0 - li * _RNG_LINE * s
+        tx = tx0
+        for i, (t, b) in enumerate(segs):
+            prop = bold if b else reg
+            color = accent if (b and li == 0 and i == 0) else (
+                TILE_VAL_FG if b else "#4a5560")
+            ax.text(tx, yy, t, va="baseline", ha="left", fontproperties=prop,
+                    color=color)
+            core = t.rstrip(" ")
+            tx += _text_w(renderer, core, prop)
+            if len(t) > len(core):
+                tx += (_text_w(renderer, "x x", prop)
+                       - _text_w(renderer, "xx", prop)) * (len(t) - len(core))
 
 
 def _draw_title(fig, title, H, top, plot_top):
     """The caption the user typed in the Save menu, sitting just above the plot
-    (not floating at the top of the sheet)."""
+    (not floating at the top of the sheet). Set in the chart's own serif (a real
+    semibold of Source Serif 4) so it belongs with "Count" and "Diameter (nm)";
+    it used to be Roboto Slab, the micrograph-label face, and looked pasted on."""
     fig.text(0.5, plot_top + 0.10 / H, title, ha="center", va="bottom",
-             fontsize=16, family=matplotlib_family(ROBOTO, "Roboto Slab"),
-             weight="bold", color=INK)
+             fontsize=17, family=matplotlib_title_family(), weight=600,
+             color=INK)
 
 
 # ---------------------------------------------------------------------------
@@ -182,12 +349,20 @@ def _draw_class_legend(fig, rect, groups, present, n_classified, cols, rows, sla
 def _figure_image(fig):
     """Render a finished figure to a PIL image and release it."""
     import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
 
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", facecolor=BG)
+    # Straight from the Agg buffer. It used to be saved as a PNG and decoded
+    # again: ~14 ms of every ~55 ms panel redraw spent compressing pixels only to
+    # decompress them, for the same image (checked pixel for pixel, 2026-09-24).
+    # The face colour is what savefig(facecolor=BG) set for the duration of the
+    # save; the figure is closed right after, so it need not be put back.
+    fig.set_facecolor(BG)
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()
+    im = Image.frombuffer("RGBA", canvas.get_width_height(physical=True),
+                          canvas.buffer_rgba(), "raw", "RGBA", 0, 1).convert("RGB")
     plt.close(fig)          # matplotlib keeps every open figure alive forever
-    buf.seek(0)
-    return Image.open(buf).convert("RGB")
+    return im
 
 
 def render_cumulative(target, aspect: float = 6.8 / 4.6, title=None,
@@ -215,8 +390,8 @@ def render_cumulative(target, aspect: float = 6.8 / 4.6, title=None,
 
     W = 6.8
     tiles = cumulative_tiles(target) if stats else []
-    tile_h = (0.62 * len(tiles) + 0.12) if tiles else 0.0
     lm, rm, top, bot = 0.92, 0.40, 0.26, 0.30
+    tile_h = (_tiles_height(len(tiles), W - lm - rm) + 0.12) if tiles else 0.0
     title_h = 0.34 if title else 0.0
     axlab_h = 0.78
     # SAME height rule as render_solid_split (clamped both ways rather than
@@ -231,7 +406,7 @@ def render_cumulative(target, aspect: float = 6.8 / 4.6, title=None,
     fig.patch.set_facecolor(BG)
     ax_x, ax_w = lm / W, (W - lm - rm) / W
     y = bot
-    tile_rect = [ax_x, y / H, ax_w, tile_h / H] if tiles else None
+    tile_rect = [ax_x, y / H, ax_w, (tile_h - 0.12) / H] if tiles else None
     y += tile_h + axlab_h
     ax = fig.add_axes([ax_x, y / H, ax_w, plot_h / H])
     ax.set_facecolor(PLOT)
@@ -301,6 +476,14 @@ def render_cumulative(target, aspect: float = 6.8 / 4.6, title=None,
     return _figure_image(fig)
 
 
+# the typed-range band on the Solid / Liquid plot, and its swatch in the range
+# card: #2b6fff at the band's 7% over the plot colour, a touch stronger on the
+# card so the small square still reads as that tint
+_SPLIT_BAND_EDGE = (0.169, 0.435, 1.0, 0.55)      # the dashed lines: #2b6fff at 55%
+_SPLIT_BAND_SWATCH = (0.169, 0.435, 1.0, 0.16)
+_SPLIT_BAND_INK = "#2b6fff"
+
+
 def render_solid_split(target, aspect: float = 6.8 / 4.6, size_range=None,
                        title=None, stats=False) -> Image.Image:
     """The size histogram split by state: solid stacked under undercooled.
@@ -329,8 +512,18 @@ def render_solid_split(target, aspect: float = 6.8 / 4.6, size_range=None,
     total = sum(counts.values())
 
     W = 6.8
-    tiles = split_tiles(target, size_range) if stats else []
-    tiles_h = (0.62 * len(tiles) + 0.22) if tiles else 0.0
+    tiles = split_tiles(target) if stats else []
+    tiles_h = (_tiles_height(len(tiles), W - 2 * 0.40) + 0.22) if tiles else 0.0
+    # the size range in words, as a card above the tiles — the SAME sentence
+    # as the All export (share of the measured particles in the range, over the
+    # same particles as the MEAN / D tiles), not a solid share: 2026-09-27
+    rng_lines, rng_h = None, 0.0
+    rng_runs = (range_sentence(target.diam_array(whole_only=True), *size_range)
+                if stats and size_range is not None else None)
+    if rng_runs:
+        rng_lines, rng_h = _range_layout(rng_runs, W - 2 * 0.40, 200)
+        rng_h += 0.14                     # gap between the card and the tiles
+    tiles_h += rng_h
     title_h = 0.34 if title else 0.0
     # The height follows the SAME rule as render_report (capped both ways), so a
     # tall panel doesn't stretch this figure into a narrow column and the two
@@ -345,7 +538,10 @@ def render_solid_split(target, aspect: float = 6.8 / 4.6, size_range=None,
     y = bot
     tiles_rect = None
     if tiles:
-        tiles_rect = [rm / W, y / H, (W - 2 * rm) / W, (tiles_h - 0.22) / H]
+        tiles_rect = [rm / W, y / H, (W - 2 * rm) / W, (tiles_h - rng_h - 0.22) / H]
+        if rng_lines:
+            rng_rect = [rm / W, (y + tiles_h - rng_h - 0.22 + 0.14) / H,
+                        (W - 2 * rm) / W, (rng_h - 0.14) / H]
         y += tiles_h
     y += axlab_h
     ax = fig.add_axes([ax_x, y / H, ax_w, plot_h / H])
@@ -400,6 +596,11 @@ def render_solid_split(target, aspect: float = 6.8 / 4.6, size_range=None,
 
     if tiles_rect is not None:
         _draw_tiles(fig, tiles_rect, tiles)
+    if rng_lines:
+        # the swatch is a piece of the band on the plot (its tint and its
+        # dashed-line blue), and the share is set in that blue
+        _draw_range_card(fig, rng_rect, rng_lines, _SPLIT_BAND_SWATCH,
+                         _SPLIT_BAND_EDGE, _SPLIT_BAND_INK)
     if title:
         _draw_title(fig, title, H, top, (y + plot_h) / H)
     return _figure_image(fig)
@@ -526,7 +727,16 @@ def render_report(target, aspect: float = 6.8 / 8.9, size_range=None,
 
     # the tile block under the chart (exports only): one strip per row of tiles
     tile_rows = stat_tiles(target, cls_filter, size_range) if stats else []
-    tiles_h = (0.62 * len(tile_rows) + 0.22) if tile_rows else 0.0
+    tiles_h = (_tiles_height(len(tile_rows), W - 2 * rm) + 0.22) if tile_rows else 0.0
+    # the size range in words, as a card above the tiles (see _draw_range_card)
+    rng_runs = rng_lines = None
+    rng_h = 0.0
+    if stats and size_range is not None:
+        rng_runs = range_sentence(diams, *size_range, cls=cls_filter)
+    if rng_runs:
+        rng_lines, rng_h = _range_layout(rng_runs, W - 2 * rm, 200)
+        rng_h += 0.14                     # gap between the card and the tiles
+    tiles_h += rng_h
     title_h = 0.34 if title else 0.0      # the user's own caption, above the plot
 
     # cap how tall the figure may get: a very tall card would otherwise stretch
@@ -547,7 +757,11 @@ def render_report(target, aspect: float = 6.8 / 8.9, size_range=None,
     y = bot
     tiles_rect = None
     if tile_rows:
-        tiles_rect = [rm / W, y / H, (W - 2 * rm) / W, (tiles_h - 0.22) / H]
+        tiles_rect = [rm / W, y / H, (W - 2 * rm) / W,
+                      (tiles_h - rng_h - 0.22) / H]
+        if rng_lines:
+            rng_rect = [rm / W, (y + tiles_h - rng_h - 0.22 + 0.14) / H,
+                        (W - 2 * rm) / W, (rng_h - 0.14) / H]
         y += tiles_h
     leg_rect = band_rect = None
     if band:
@@ -611,6 +825,11 @@ def render_report(target, aspect: float = 6.8 / 8.9, size_range=None,
 
     if tiles_rect is not None:
         _draw_tiles(fig, tiles_rect, tile_rows)
+    if rng_lines:
+        _draw_range_card(fig, rng_rect, rng_lines,
+                         CLASS_RANGE_FILL[cls_filter] if cls_filter else RANGE_FILL,
+                         CLASS_EDGES[cls_filter] if cls_filter else RANGE_EDGE,
+                         CLASS_EDGES[cls_filter] if cls_filter else RANGE_EDGE)
     if title:
         _draw_title(fig, title, H, top, hist_rect[1] + hist_rect[3])
 

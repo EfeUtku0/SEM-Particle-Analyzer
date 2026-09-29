@@ -55,6 +55,41 @@ def render_variant(analysis, typ, chosen=None, k=5):
     raise ValueError(typ)
 
 
+# ---- colour: tag every PNG with Display P3 ----
+# The app draws a figure's pixel values straight onto the screen, and a Mac's
+# screen is Display P3, so on screen #a9dcd8 IS a P3 colour. A PNG with no
+# profile is read as sRGB by Preview, Keynote, Word and browsers, which maps it
+# into the narrower gamut: the export came out visibly washed out next to the
+# app (measured 2026-09-24: the teal bar showed as (179,219,216) in the viewer
+# against (169,220,216) in the app, exactly the sRGB -> display conversion).
+# Tagging the SAME numbers as Display P3 makes every colour-managed viewer show
+# what the app shows; a viewer that ignores profiles sees the raw values, which
+# is what it would have shown anyway.
+_P3_ICC = "/System/Library/ColorSync/Profiles/Display P3.icc"
+_icc = None
+
+
+def display_p3_profile():
+    """The Display P3 ICC bytes, or None off macOS (the PNG is then untagged)."""
+    global _icc
+    if _icc is None:
+        try:
+            with open(_P3_ICC, "rb") as f:
+                _icc = f.read()
+        except OSError:
+            _icc = b""
+    return _icc or None
+
+
+def save_png(img, path):
+    """Write `img` as a PNG carrying the Display P3 profile when available."""
+    icc = display_p3_profile()
+    if icc:
+        img.save(path, icc_profile=icc)
+    else:
+        img.save(path)
+
+
 def _safe(name):
     return re.sub(r'[\\/:*?"<>|]', "_", name).strip() or "export"
 
@@ -123,7 +158,7 @@ def export(analyses, out_dir, types, facet_thresh=None, chosen_map=None, k=5,
             auto_name = _safe(base) + ".png"
         name = _free_name(out_dir, auto_name, taken)
         p = os.path.join(out_dir, name)
-        img.save(p)
+        save_png(img, p)
         outputs[name] = p
 
     for a in analyses:

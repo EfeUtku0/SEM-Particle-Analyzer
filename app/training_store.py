@@ -214,7 +214,13 @@ def save_confirmed(analysis, labels, excluded=None, meta=None):
     # stay in the json only — patternnet never sees undercooled particles).
     # Stored unprocessed (model_pattern_crops.raw_crop) so normalization/size stay a
     # train-time choice — see model_pattern_crops.py for why.
-    gray_f = analysis.micrograph.astype(np.float32)
+    g = analysis.gray()          # re-read from the file (not kept in session.pkl)
+    if g is None:
+        raise FileNotFoundError(
+            f"“{analysis.image}” can't be opened any more ({analysis.path}), so "
+            f"its particles can't be cut out for training. Put the file back "
+            f"and confirm again.")
+    gray_f = g.astype(np.float32)
     masks = analysis.label_mask
     bbox = {rp.label: rp.bbox for rp in regionprops(masks)}
     nmpp = analysis.nm_per_px or 8.0

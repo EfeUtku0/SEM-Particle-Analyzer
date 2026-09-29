@@ -7,7 +7,7 @@ lamellar recall 0.425->0.664 on identical image-grouped folds)."""
 from __future__ import annotations
 
 import numpy as np
-import cv2
+# cv2 is imported inside the two functions that use it — see model_solid_liquid
 
 RAW = 128
 # 128 (was 96): measured on the 32-photo clean set (scratchpad/sweep3_res128.py),
@@ -19,11 +19,12 @@ SIZE = 128
 
 
 def torch_device():
-    """Where training runs: Apple GPU, else an NVIDIA GPU, else the CPU.
+    """Where training and pattern inference run: Apple GPU, else an NVIDIA
+    GPU, else the CPU.
 
-    Inference is deliberately CPU-only (the two nets are tiny and load with
-    map_location="cpu"), but a training run is minutes on a GPU and hours
-    without one. This used to read `"mps" if available else "cpu"`, which is
+    Only the solid/liquid gate still infers on the CPU (it really is tiny);
+    the pattern net moved to this device on 2026-09-24, see model_pattern._infer.
+    A training run is minutes on a GPU and hours without one. This used to read `"mps" if available else "cpu"`, which is
     the right answer on the Mac it was written on and the wrong one on any
     Windows/Linux machine with a CUDA card — the app would quietly train on
     the CPU there.
@@ -38,6 +39,7 @@ def torch_device():
 
 def raw_crop(gray, masks, label_id, bbox):
     """Unprocessed intensity + soft silhouette patch, RAWxRAW, 1.30x padded."""
+    import cv2
     y0, x0, y1, x1 = bbox
     h, w = y1 - y0, x1 - x0
     side = max(int(max(h, w) * 1.30), 8)
@@ -61,6 +63,7 @@ def featurize_batch(imgs, sils, diam_nm, size=SIZE, masked=True):
     """raw [N,H,W] -> 3ch float32 [N,3,size,size]: robust-normalized texture,
     silhouette, log-size. Must match tools/exp.py::make_x bit-for-bit (that is
     what the reported sweep numbers are trusted against)."""
+    import cv2
     N = len(imgs)
     X = np.zeros((N, 3, size, size), np.float32)
     for i in range(N):

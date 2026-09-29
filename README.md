@@ -102,7 +102,7 @@ python3 -m venv .venv
 .venv/bin/python app/gui.py                    # Windows: .venv\Scripts\python app\gui.py
 ```
 
-Afterwards just double-click **`run.command`** (macOS) or **`run.bat`**
+Afterwards just double-click **`sem.command`** (macOS) or **`run.bat`**
 (Windows). Run from source and **the first analysis downloads ~1.3 GB** of model
 weights (Cellpose `cpsam`, EasyOCR) into your home folder, once — the packaged
 build has them already. Either way the first analysis takes a minute or two

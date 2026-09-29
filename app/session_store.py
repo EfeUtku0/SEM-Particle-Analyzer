@@ -26,6 +26,7 @@ session unreadable; it must keep its name.
 from __future__ import annotations
 
 import os
+import sys
 import time
 import traceback
 
@@ -33,8 +34,14 @@ from PySide6 import QtCore, QtWidgets
 
 import analyze
 
-SESSION_VERSION = 2   # v1 sessions still load (the occlusion gate only reads
-                      # fields v1 already has) — never drop a user's analyses.
+SESSION_VERSION = 3   # v1 and v2 sessions still load — never drop a user's
+                      # analyses. v3 (2026-09-27) stores each analysis compact
+                      # (zlib-packed mask, no micrograph: analyze.Analysis.
+                      # __getstate__), 566 MB -> ~45 MB for 143 photos. An older
+                      # app refuses v3 at the version check instead of
+                      # half-reading it, and the last v2 file is kept aside as
+                      # session.pkl.pre-compact for going back to it.
+READABLE_VERSIONS = (1, 2, 3)
 
 
 def _session_path():
@@ -45,6 +52,39 @@ def _session_path():
 
 class SessionStore:
     """Mixin: session persistence and an orderly shutdown. `self` is the window."""
+
+    # ---- hide instead of close (macOS) ----
+    def _hide_window(self):
+        # written now rather than at quit: a hidden app can sit for days and
+        # still be ended by a shutdown that never asks it anything
+        self._save_library()
+        self._save_session()
+        if self.isFullScreen():
+            # a full-screen window lives in its own Space; hiding it there
+            # leaves that Space black (the trap Artitect fell into, 2026-09-21)
+            # — leave full screen first, hide once the animation has finished
+            self._hide_after_fullscreen = True
+            self.showNormal()
+        else:
+            self.hide()
+
+    def changeEvent(self, e):
+        if (e.type() == QtCore.QEvent.WindowStateChange
+                and getattr(self, "_hide_after_fullscreen", False)
+                and not self.isFullScreen()):
+            self._hide_after_fullscreen = False
+            QtCore.QTimer.singleShot(700, self.hide)
+        super().changeEvent(e)
+
+    def _app_state_changed(self, state):
+        """A click on the Dock icon arrives as 'application active' — Qt
+        forces it through even when the app already is — so that is where a
+        hidden window comes back."""
+        if (state == QtCore.Qt.ApplicationActive and not self.isVisible()
+                and not getattr(self, "_quitting", False)):
+            self.showNormal()
+            self.raise_()
+            self.activateWindow()
 
     # ---- session persistence ----
     # Which switches ride along in the session file. Deliberately a tiny, named
@@ -109,8 +149,14 @@ class SessionStore:
             if os.path.exists(p):
                 if getattr(self, "_session_damaged", False):
                     os.replace(p, p + time.strftime(".damaged-%Y%m%d-%H%M%S"))
+                elif (getattr(self, "_session_loaded_version", SESSION_VERSION)
+                        < 3 and not os.path.exists(p + ".pre-compact")):
+                    # the first compact save: the last file an older app can
+                    # read steps aside for good instead of into the rolling .bak
+                    os.replace(p, p + ".pre-compact")
                 else:
                     os.replace(p, p + ".bak")
+            self._session_loaded_version = SESSION_VERSION
             # 3) the complete new file takes its place
             os.replace(tmp, p)
             tmp = None
@@ -158,8 +204,9 @@ class SessionStore:
                     f"Both files were kept untouched in:\n{os.path.dirname(p)}")
                 return
             ver = data.get("version")
-            if ver not in (1, SESSION_VERSION):
+            if ver not in READABLE_VERSIONS:
                 return
+            self._session_loaded_version = ver
             # before anything that can bail out: the switches are independent of
             # whether any analysis survived the restore
             self._apply_prefs(data.get("prefs"))
@@ -168,11 +215,11 @@ class SessionStore:
             rmap = getattr(self, "_relink_map", {})
             def rk(k):
                 return rmap.get(k, k)
-            # An analysis carries its own micrograph pixels, so it stays viewable
-            # even if the original file was later renamed or removed — as long as
-            # the image is still organised in the library. So keep a result when
-            # its (healed) path resolves on disk OR is still a row in the tree;
-            # only truly orphaned analyses (image removed by the user) are dropped.
+            # Keep a result when its (healed) path resolves on disk OR is still a
+            # row in the tree; only truly orphaned analyses (image removed by the
+            # user) are dropped. (The micrograph is no longer stored with it —
+            # Analysis.gray() re-reads the file — and the overlay always drew
+            # from the file anyway.)
             lib_paths = self._all_paths()
             results = {}
             for k, v in data.get("results", {}).items():
@@ -187,8 +234,14 @@ class SessionStore:
             # memory drops now and the next save writes the small form.
             n_ghosts = 0
             for v in results.values():
-                if v.label_mask is not None:
-                    v.label_mask = analyze._compact_labels(v.label_mask)
+                # only masks that arrived UNPACKED (v1/v2 files) can be wide;
+                # a packed one was compacted before it was packed, and asking
+                # for label_mask here would open all of them (see analyze._lm_get)
+                m = v.__dict__.get("_lm")
+                if m is not None:
+                    c = analyze._compact_labels(m)
+                    if c is not m:
+                        v.label_mask = c
                 # Bring old analyses up to the current MIN_COUNT floors. Purely a
                 # filter over masks that do not change, so it gives exactly what a
                 # fresh run would — without re-segmenting 36 photos.
@@ -250,12 +303,21 @@ class SessionStore:
             traceback.print_exc()
 
     def closeEvent(self, e):
+        # The red button and ⌘W HIDE the window; the app keeps running and the
+        # Dock icon brings it back (user request, 2026-09-27: "like Artitect —
+        # ⌘Q quits, the red button must not"). Only a real quit — ⌘Q, Quit in
+        # the Dock or the app menu, logging out — gets past this; the window
+        # marks those when the application's Quit event goes by (gui.eventFilter).
+        if sys.platform == "darwin" and not getattr(self, "_quitting", False):
+            e.ignore()
+            self._hide_window()
+            return
         # Never let the interpreter tear down a QThread that is still running —
         # that aborts the process on the way out (see _retire_worker). Stop
         # feeding the queue and join whatever is in flight; an analysis cannot be
         # interrupted mid-Cellpose, so closing during one waits for that image.
         self.queue = []
-        for attr in ("worker", "_train_worker", "_sat_worker"):
+        for attr in ("worker", "_train_worker", "_sat_worker", "_scale_worker"):
             if getattr(self, attr, None) is not None:
                 self.status.showMessage("Finishing the current run before closing…")
                 QtWidgets.QApplication.processEvents(

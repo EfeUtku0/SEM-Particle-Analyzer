@@ -162,7 +162,8 @@ class SaturationWindow(QtWidgets.QDialog):
         if not p:
             return
         try:
-            self._image.save(p)
+            from export_files import save_png   # Display P3, like every export
+            save_png(self._image, p)
             self.status.setText(f"Saved {os.path.basename(p)}")
         except OSError as exc:
             QtWidgets.QMessageBox.critical(self, "Save failed", str(exc))

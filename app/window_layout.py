@@ -29,6 +29,16 @@ def hdr(t):
     l = QtWidgets.QLabel(t); l.setObjectName("h"); return l
 
 
+class ClickLabel(QtWidgets.QLabel):
+    """A label that can be clicked (keeps a label's height, unlike a button)."""
+    clicked = QtCore.Signal()
+
+    def mousePressEvent(self, e):
+        if e.button() == QtCore.Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(e)
+
+
 def ctl(t):
     """A label that names a control, in the quieter control colour."""
     l = QtWidgets.QLabel(t); l.setObjectName("ctl"); return l
@@ -465,7 +475,25 @@ class WindowLayout:
         adj_card.setLayout(adj_body)
 
         mid = QtWidgets.QVBoxLayout(); mid.setSpacing(8); mid.setContentsMargins(0, 0, 0, 0)
-        mid.addWidget(hdr("PARTICLES"))
+        # The scale this photo was measured with rides on the caption row, on
+        # the right: every size in the app is pixels × this one number, so it
+        # is shown where the photo is, and a click opens the evidence (the
+        # scale check). A clickable LABEL, not a button: the row must stay the
+        # caption's own height or the image card drops out of line with the
+        # IMAGES / RESULTS cards beside it.
+        cap_row = QtWidgets.QHBoxLayout(); cap_row.setContentsMargins(0, 0, 2, 0)
+        cap_row.setSpacing(6)
+        cap_row.addWidget(hdr("PARTICLES"))
+        cap_row.addStretch(1)
+        self.scale_chip = ClickLabel("")
+        self.scale_chip.setObjectName("scalechip")
+        self.scale_chip.setCursor(QtCore.Qt.PointingHandCursor)
+        self.scale_chip.setToolTip("How this photo's scale was read — click to "
+                                   "check it or set it by hand")
+        self.scale_chip.clicked.connect(self._open_scale_check)
+        self.scale_chip.setVisible(False)
+        cap_row.addWidget(self.scale_chip)
+        mid.addLayout(cap_row)
         mid.addWidget(image_card)            # fixed height (width / aspect)
         # the adjustments card takes the leftover height. It must be the
         # stretchable item: AspectCard is fixed-height, so with nothing able to
@@ -491,6 +519,7 @@ class WindowLayout:
         # in every tab and the tiles never collide with the x-axis label
         self.result.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
         self.result.setMinimumHeight(150)
+        self.result.setWordWrap(True)      # the no-scale message is a sentence
         self.result.setStyleSheet("background:transparent;color:#9aa4ae;")
 
         # ---- class filter chips, on top of the result card. "All" is the whole
@@ -703,24 +732,18 @@ class WindowLayout:
         split_grid = QtWidgets.QGridLayout()
         split_grid.setHorizontalSpacing(6); split_grid.setVerticalSpacing(6)
         split_grid.setContentsMargins(0, 0, 0, 0)
-        # Two columns, not three: "MEAN UNDERCOOLED" and "MOSTLY SOLID ABOVE"
-        # are long captions and a third of the panel elides them. The pairs also
-        # line up the way they are read — solid on the left, undercooled on the
-        # right. Captions mirror chart_data.split_tiles(), which draws the same block
-        # into an exported figure.
-        # The last pair was MOSTLY SOLID ABOVE + CLASSIFIED until 2026-08-08, when
-        # the user asked for the sphericity of each state instead — which also
-        # makes every row of this block a solid/undercooled pair.
+        # Three columns: the two shares and the mean, then D10 / D50 / D90.
+        # Captions mirror chart_data.split_tiles(), which draws the same block
+        # into an exported figure. (Until 2026-09-27: a mean and a sphericity
+        # PER STATE, two per row — the user's colleagues only ever ask for the
+        # ratio and the size.)
         _split_caps = [("solid", "SOLID"), ("undercooled", "UNDERCOOLED"),
-                       ("meansolid", "MEAN SOLID"), ("meanunder", "MEAN UNDERCOOLED"),
-                       ("sphsolid", "SPHERICITY SOLID"),
-                       ("sphunder", "SPHERICITY UNDERCOOLED")]
+                       ("mean", "MEAN"), ("d10", "D10"), ("d50", "D50"),
+                       ("d90", "D90")]
         for i, (key, cap) in enumerate(_split_caps):
             t = Tile(cap, "—"); self.split_tiles[key] = t
-            if key.startswith("sph"):
-                t.setToolTip(self.tile_sph.toolTip())
-            split_grid.addWidget(t, i // 2, i % 2)
-        for c in range(2):
+            split_grid.addWidget(t, i // 3, i % 3)
+        for c in range(3):
             split_grid.setColumnStretch(c, 1)
         split_body = QtWidgets.QVBoxLayout()
         split_body.setContentsMargins(0, 0, 0, 0); split_body.setSpacing(8)
@@ -989,6 +1012,9 @@ class WindowLayout:
                          ("0", "exclude")):
             sc = QtGui.QShortcut(QtGui.QKeySequence(key), self)
             sc.activated.connect(lambda c=cls: self._key_class(c))
+        # ⌘W hides the window like the red button (SessionStore.closeEvent)
+        sc = QtGui.QShortcut(QtGui.QKeySequence.Close, self)
+        sc.activated.connect(self.close)
         sc = QtGui.QShortcut(QtGui.QKeySequence("M"), self)
         sc.activated.connect(lambda: self._key_class("measure"))
         sc = QtGui.QShortcut(QtGui.QKeySequence("C"), self)

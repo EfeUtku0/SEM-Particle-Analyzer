@@ -820,6 +820,8 @@ class LibraryPanel:
                 f"Removed {n} speckle detections that were too small to be real "
                 f"particles (a few pixels across). Counts and mean sizes on the "
                 f"coarser photos have changed accordingly.")
+        # analyses older than the scale check: their chips from the cache
+        self._fill_scale_info()
 
     def _selected_paths(self):
         """Selected image paths (the analysis / results set). Selecting a folder

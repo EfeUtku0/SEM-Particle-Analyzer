@@ -457,7 +457,11 @@ class TrainReportWindow(QtWidgets.QDialog):
         if not p:
             return
         try:
-            self._render(page).save(p, "PNG")
+            # tagged Display P3, like every other export: Qt drew it with the
+            # screen's own colours, and an untagged PNG reads as washed out
+            img = self._render(page).toImage()
+            img.setColorSpace(QtGui.QColorSpace(QtGui.QColorSpace.DisplayP3))
+            img.save(p, "PNG")
             self.status.setText(f"Kaydedildi: {os.path.basename(p)}")
         except Exception as exc:
             QtWidgets.QMessageBox.critical(self, "Save failed", str(exc))

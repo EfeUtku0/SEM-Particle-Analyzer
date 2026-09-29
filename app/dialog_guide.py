@@ -128,6 +128,15 @@ class GuideDialog(QtWidgets.QDialog):
                 f"Re-running is quick — the heavy segmentation step is cached. "
                 f"(In {k('🎓 Training')} the same dot switches to the training "
                 f"set instead — see below.)",
+                f"Every size is pixels × the photo's {k('scale')}. When the "
+                f"scale bar and the magnification agree it is confirmed and "
+                f"nothing is shown; anything else — unread, corrected, "
+                f"conflicting, set by hand — appears above the photo on the "
+                f"right. {k('Click it')} to see where the bar's ends were found "
+                f"and what was read; if they are off, drag the markers onto the "
+                f"ends, correct the label and use it. A photo "
+                f"whose scale can't be read is left out of the results until "
+                f"you set one — it is never charted at 0 nm.",
             ]),
             cls._section("Looking at the image", [
                 f"{k('Space')} hides the whole overlay — colours and borders — so "
@@ -235,16 +244,15 @@ class GuideDialog(QtWidgets.QDialog):
                 f"The chips above the chart filter the distribution to one class; "
                 f"{k('Pattern × Size')} shows what each size range is made of.",
                 f"{k('Solid / Liquid')} splits every bar of the size "
-                f"histogram into the two states and draws the solid share over "
-                f"it, so you can see where on the size axis the particles stop "
-                f"being undercooled. Type a range into {k('Size range')} under it "
-                f"and it tells you exactly what share of the particles that size "
-                f"is solid. (The same range also highlights the {k('All')} "
-                f"histogram — it is one range, typed in either place.)",
+                f"histogram into the two states, so you can see where on the "
+                f"size axis the particles stop being undercooled. Type a range "
+                f"into {k('Size range')} under it and it tells you what share of "
+                f"the measured particles falls in that range — the same number "
+                f"as on the {k('All')} page, since it is one range, typed in "
+                f"either place.",
                 f"{k('SPHERICITY')} is how round the particles are, averaged over "
                 f"them — 1.00 is a perfect circle, 0 is an outline no rounder "
-                f"than a square. The class tabs and the {k('Solid / Liquid')} "
-                f"page give each class and each state its own figure. The small "
+                f"than a square. The class tabs give each class its own figure. The small "
                 f"number beside it is the share of the measured particles it "
                 f"rests on: a particle touching the edge of the photo is cut by "
                 f"the frame rather than by its own shape, so it is left out. "

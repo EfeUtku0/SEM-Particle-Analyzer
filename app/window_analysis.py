@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import os
 
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 import analyze
+import dialog_scale_check
+import scale_overrides
 import training_store
 from analyze import DEFAULT_FACET_THRESH
-from background_workers import Worker
+from background_workers import CallWorker, Worker
 
 
 class AnalysisFlow:
@@ -89,9 +91,150 @@ class AnalysisFlow:
             QtWidgets.QMessageBox.Yes)
         return r == QtWidgets.QMessageBox.Yes
 
+    # ---- the scale ----
+    _CHIP_ICON = {dialog_scale_check.GOOD: "\u2713", dialog_scale_check.WARN: "\u26a0",
+                  dialog_scale_check.BAD: "\u2715", dialog_scale_check.INFO: "\u2022"}
+
+    def _update_scale_chip(self):
+        """The caption-row readout of the current photo's scale: the label, the
+        nm/px every size is multiplied by, and one word on how sure it is —
+        coloured the way the scale check's banner is (dialog_scale_check.verdict
+        is the single source of both)."""
+        chip = getattr(self, "scale_chip", None)
+        if chip is None:
+            return
+        a = self.results.get(self.current) if self.current else None
+        if a is None:
+            chip.setVisible(False)
+            return
+        info = getattr(a, "scale_info", None)
+        col, short, _head, _why = dialog_scale_check.verdict(info, a.nm_per_px)
+        if col == dialog_scale_check.GOOD:
+            # A confirmed scale needs no attention (user rule, 2026-09-27: "if
+            # it is confirmed I don't need to see it — show me the failures").
+            # It also ended the colour flip between photos that read as the
+            # app re-measuring every time a photo was opened.
+            chip.setVisible(False)
+            return
+        icon = self._CHIP_ICON[col]
+        if a.nm_per_px:
+            lab = (info or {}).get("label_text") or a.scale_label or ""
+            npp = dialog_scale_check._fmt_npp(a.nm_per_px)
+            txt = f"{icon}  {lab}  ·  {npp} nm/px  ·  {short}"
+        else:
+            txt = f"{icon}  Scale not read  ·  click to set it"
+        chip.setText(txt)
+        chip.setStyleSheet(f"color:{col};font-size:11px;font-weight:800;"
+                           f"letter-spacing:0.3px;background:transparent;")
+        chip.setVisible(True)
+
+    def _adopt_scale(self, path, sr):
+        """Keep a fresh reading as the analysis' scale_info when it gives the
+        nm/px the analysis was made with — same number, now with its evidence.
+
+        Without this the chip of an older analysis said "not checked" forever:
+        the window read the bar and showed "confirmed", but nothing kept what
+        it found, so the chip was back to "not checked" once it closed (user
+        report, 2026-09-27). A reading that gives a DIFFERENT number is not the
+        scale behind these sizes, so it is not adopted; the window offers the
+        re-analysis instead. True when something changed."""
+        a = self.results.get(path)
+        if a is None or sr is None or not getattr(sr, "ok", False):
+            return False
+        used, npp = float(a.nm_per_px or 0.0), float(sr.nm_per_px or 0.0)
+        if not used or not npp or abs(npp / used - 1) > 0.005:
+            return False
+        d = analyze.scale_info_dict(sr)
+        if a.scale_info == d:
+            return False
+        a.scale_info = d
+        if path == self.current:
+            self._update_scale_chip()
+        return True
+
+    def _fill_scale_info(self):
+        """After the session is back: give every analysis older than the scale
+        check (scale_info None) the reading its photo already has in the cache,
+        so its chip shows the real verdict rather than "not checked". Cache
+        only — a stat and a small JSON per photo, no OCR: running EasyOCR over
+        the whole library at start-up would load torch and hold the GPU for
+        minutes on an 8 GB Mac. A photo with no cached reading keeps "not
+        checked" until its chip is clicked."""
+        changed = False
+        for p, a in self.results.items():
+            if getattr(a, "scale_info", None) is None and a.nm_per_px:
+                try:
+                    sr = analyze._read_scale_cached(p, cached_only=True)
+                except Exception:
+                    continue
+                changed |= self._adopt_scale(p, sr)
+        if changed:
+            self._save_session()
+
+    def _open_scale_check(self):
+        path = self.current
+        a = self.results.get(path) if path else None
+        if a is None:
+            return
+        if self.worker is not None:
+            # one OCR at a time: the analysis worker is using the same reader
+            self.status.showMessage("The scale can be checked once the analysis "
+                                    "running now has finished.")
+            return
+        if getattr(self, "_scale_worker", None) is not None:
+            return                                   # already reading it
+        # The reading is taken fresh (the cache makes it instant after the
+        # first time): an analysis made by an older reader still shows what
+        # the CURRENT reader finds, and the window says when they differ. Off
+        # the GUI thread — the first read of a session loads EasyOCR, which
+        # used to freeze the window for seconds with a spinning cursor.
+        def read():
+            sr = analyze._read_scale_cached(path)
+            auto = (sr if sr.source != "manual"
+                    else analyze._read_scale_cached(path, manual=False))
+            return sr, auto
+        self.status.showMessage(f"Reading the scale of {os.path.basename(path)}…")
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.BusyCursor)
+        self._scale_worker = CallWorker(read)
+        self._scale_worker.done.connect(
+            lambda res, p=path: self._scale_read_done(p, res))
+        self._scale_worker.failed.connect(self._scale_read_failed)
+        self._scale_worker.start()
+
+    def _scale_read_failed(self, tb):
+        QtWidgets.QApplication.restoreOverrideCursor()
+        self._retire_worker("_scale_worker")
+        QtWidgets.QMessageBox.critical(self, "Scale check", tb)
+
+    def _scale_read_done(self, path, res):
+        QtWidgets.QApplication.restoreOverrideCursor()
+        self._retire_worker("_scale_worker")
+        self.status.clearMessage()
+        a = self.results.get(path)
+        if a is None:
+            return                          # removed while it was being read
+        sr, auto = res
+        if self._adopt_scale(path, sr):
+            self._save_session()
+        dlg = dialog_scale_check.ScaleCheckDialog(self, path, sr, auto, a.nm_per_px)
+        dlg.exec()
+        if dlg.action is None:
+            return
+        # every branch re-analyses the photo, which is what drops its hand-made
+        # corrections — ask exactly as the Analyze button does
+        if not self._confirm_discard_edits([path]):
+            return
+        if dlg.action == "apply":
+            scale_overrides.put(path, *dlg.new, auto=auto)
+        elif dlg.action == "reset":
+            scale_overrides.clear(path)
+        self._run([path])
+
     def _run(self, paths, do_class=None, do_pattern=None):
         if not paths or self.worker is not None:
             return
+        if getattr(self, "_scale_worker", None) is not None:
+            self._scale_worker.wait()     # a scale read in flight uses the same OCR
         # Analyze evaluates everything; callers may still switch a step off —
         # loading labelled photos skips the pattern CNN because the saved labels
         # override it anyway.
@@ -121,8 +264,10 @@ class AnalysisFlow:
             self._save_session()          # keep results across restarts
             warns = []
             if self._scale_warnings:
-                warns.append("Scale bar could not be read (sizes shown as 0 nm):\n  "
-                             + ", ".join(self._scale_warnings))
+                warns.append("No scale could be read, so these have no sizes "
+                             "yet:\n  " + ", ".join(self._scale_warnings)
+                             + "\n\nClick the red scale label above the photo to "
+                             "set the scale by hand.")
             if self._empty_warnings:
                 warns.append("No particles detected:\n  " + ", ".join(self._empty_warnings))
             if warns:

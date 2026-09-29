@@ -31,7 +31,8 @@ binaries = []
 # fail the build, it fails at launch on the user's machine.
 hiddenimports = [
     # startup, paths, science pipeline
-    "_bootstrap", "paths", "analyze", "info_bar_reader", "image_files",
+    "_bootstrap", "paths", "analyze", "info_bar_reader", "scale_overrides",
+    "image_files",
     "model_solid_liquid", "model_pattern", "model_pattern_crops", "model_pattern_training",
     "model_pattern_curve",
     "training_store", "review_queue", "smartsort", "thresholds", "calibrate",
@@ -41,7 +42,7 @@ hiddenimports = [
     # interface: shared widgets and dialogs
     "ui_theme", "widget_image_view", "widget_tiles", "widget_library_tree",
     "dialog_guide", "dialog_review_sheet", "dialog_saturation",
-    "dialog_train_report",
+    "dialog_train_report", "dialog_scale_check",
     "background_workers", "window_pattern_size",
     # interface: the window, one module per area (mixed into MainWindow)
     "window_library", "window_results", "window_particle_edit",

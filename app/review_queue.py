@@ -136,7 +136,7 @@ def crop_rgb(analysis, pid, size=132, pad=1.55):
     does not hide the particle's rim (the rim is exactly where janus and stripe
     are told apart).
     """
-    g = analysis.micrograph
+    g = analysis.gray()            # None when the file is gone: no tile
     m = analysis.label_mask
     if g is None or m is None:
         return None

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import re
+import dataclasses
 from dataclasses import dataclass
 
 import numpy as np
@@ -62,6 +63,9 @@ _BAR_FLAT_MAX = 1.0    # bar background is a synthetic constant; grain is not
 # (0.3-1.0 all score 126/126, 1.5 starts clipping micrograph rows off a photo
 # with a black lower half). The bars themselves measure 0.23 (JPEG) and 0.00
 # (TIFF), so this leaves ~4x headroom for a noisier bar on a future instrument.
+_LINE_MIN = 64         # the bar's 1 px structural lines (see _detect_bar)
+_SOFT_RULE_MIN = 50.0   # the rule over the bar after heavy recompression …
+_SOFT_RULE_STD = 16.0   # … is still flat across the row (see _find_info_bar_top)
 _BAR_MIN_H = 20        # below this a "bar" is a dark image edge, not a bar
 _BAR_MAX_FRAC = 0.25   # above this the walk has run into a dark micrograph
 
@@ -77,6 +81,29 @@ MIN_NM_PER_PX, MAX_NM_PER_PX = 0.05, 500.0
 # not, and means one of the two was misread.
 HFW_BAR_TOL = 0.10
 
+# Bump whenever read_scale can give a different answer for the same pixels:
+# results are cached next to the masks (analyze._read_scale_cached), and a
+# cache from the old reader would keep serving the old, wrong calibration.
+# 2: recompressed-copy fixes (soft rule, grey separators) + magnification check.
+READER_VERSION = 2
+
+# Magnification × micrograph width is a constant of the instrument (the width
+# of its display in mm). Measured 2026-09-26 on BIOMATEN: 412-413 mm across 8
+# originals at 5 000-50 000 x, and 413-415 mm on six WhatsApp copies measured
+# by hand — so nm/px = K / (width_px × mag). Only instruments listed here are
+# checked. NOT METU-METE: its magnification field is the one seen to be wrong
+# (see the module docstring), and it writes HFW, which outranks both anyway.
+INSTRUMENT_K_MM = {"BIOMATEN": 413.0}
+# Bar and magnification must agree this closely. The measured spread is ±1%;
+# 5% leaves room for a bar a pixel off on a small copy, and is still far from
+# any real misread (a wrong label digit is ≥ 20%, a dropped zero 10x).
+MAG_TOL = 0.05
+# The labels a scale bar is ever drawn with, in nm. When bar length and
+# magnification pin the label to one of these, a misread digit ("5" read as
+# "3", 31 AP) is corrected rather than trusted.
+STANDARD_LABELS_NM = (100, 200, 250, 300, 400, 500, 1000, 2000, 3000, 4000, 5000,
+                      10000, 20000, 30000, 40000, 50000, 100000, 200000, 500000)
+
 
 @dataclass
 class ScaleResult:
@@ -90,8 +117,23 @@ class ScaleResult:
     ok: bool
     note: str = ""
     detector: str = ""    # "CBS", "ETD", ... ("" when the bar carries no det cell)
-    source: str = "bar"   # which field the calibration came from: "HFW" or "bar"
+    source: str = "bar"   # where the calibration came from: "HFW", "bar", "mag"
+                          # (magnification × instrument constant) or "manual"
     hfw_nm: float = 0.0   # micrograph width in nm, when the instrument states it
+    # --- cross-check against the magnification field (see _cross_check) ------
+    mag: int = 0          # magnification as printed ("16 000 x" -> 16000), 0 = none
+    mag_npp: float = 0.0  # nm/px the magnification implies on a known instrument
+    check: str = ""       # "agree", "mag_misread", "label_fixed", "conflict",
+                          # "mag_only", "manual" or "" (nothing to check against)
+    instrument: str = ""  # "BIOMATEN" when recognised by its nameplate
+    label_read: str = ""  # what the OCR said, when check == "label_fixed"
+    # --- geometry, so the app can SHOW what was read (the scale-check view) --
+    info_top: int = 0     # first row of the info bar
+    cell_x0: int = 0      # the scale cell's interior, x from … to
+    cell_x1: int = 0
+    div_row: int = 0      # the divider under the bar's label row
+    rot: int = 0          # np.rot90 turns applied to find a side-mounted bar
+    version: int = 0      # READER_VERSION that produced this (cache key)
 
 
 _reader = None
@@ -144,11 +186,63 @@ def _find_info_bar_top(gray: np.ndarray) -> int:
         if dark[cand] and band.mean() >= _BAR_DARK_FRAC \
                 and med[cand:][band].std() <= _BAR_FLAT_MAX:
             top = cand
-    if top is None:
-        return h - _INFO_BAR_H
-    if top > 0 and med[top - 1] >= _BAR_RULE_MIN:
+    if top is not None and top > 0 and med[top - 1] >= _BAR_RULE_MIN:
         top -= 1                        # the bright rule is chrome, not image
+    # A recompressed copy (a photo forwarded over WhatsApp: ~940 px wide, heavy
+    # JPEG) breaks the flatness test above from the inside: ringing lifts some
+    # of the bar's own row medians to 6-11, and the band either splits halfway
+    # down (25 AP was cut at row 637 of a bar starting at 625) or is not found
+    # at all. The noise-tolerant reading in _soft_bar_top takes over then —
+    # and ONLY then, so an original that passes the strict test is cropped
+    # exactly as before (checked on all 198 library images).
+    soft = _soft_bar_top(gray, med, limit)
+    if top is None:
+        return soft if soft is not None else h - _INFO_BAR_H
+    # split = bar rows (dark) lie between the two answers; a thick rule alone
+    # is no split, and re-cropping an analysed original would orphan its masks
+    if soft is not None and soft < top and (med[soft:top] <= _BAR_DARK_MAX).any():
+        return soft
     return top
+
+
+def _soft_bar_top(gray: np.ndarray, med: np.ndarray, limit: int):
+    """The info bar's top by its RULES rather than its flatness.
+
+    Walks up from the bottom through the bar's dark rows and its thin rules,
+    and stops at the first row that is neither (the micrograph). The top is
+    the highest rule passed. A rule survives recompression as a flat line —
+    measured on 40 simulated copies: median 55-182, row std <= 13.4, where a
+    micrograph row, dark or bright, has std 37-76 and the bar's background
+    rows a median of ~4. A flat run thicker than 3 rows is not a rule but an
+    even patch of image (MU 84 has one right above its bar), so it ends the
+    walk and is undone. With no rule above the bar at all, the highest dark
+    row is the best there is.
+    """
+    h = gray.shape[0]
+    std = gray[limit:].std(axis=1)
+    top_rule = top_dark = None
+    run, before_run = 0, None
+    y = h - 1
+    while y > limit:
+        if med[y] <= _BAR_DARK_MAX:
+            top_dark, run = y, 0
+        elif med[y] >= _SOFT_RULE_MIN and std[y - limit] <= _SOFT_RULE_STD:
+            if run == 0:
+                before_run = top_rule
+            run += 1
+            if run > 3:
+                top_rule = before_run
+                break
+            if h - y >= _BAR_MIN_H:
+                top_rule = y
+        else:
+            break
+        y -= 1
+    if top_rule is not None:
+        return top_rule
+    if top_dark is not None and h - top_dark >= _BAR_MIN_H:
+        return top_dark
+    return None
 
 
 def _detect_bar(gray: np.ndarray):
@@ -173,10 +267,16 @@ def _detect_bar(gray: np.ndarray):
     band = gray[top:h, :]
     bh = band.shape[0]
     binz = band > 128
-    chrome = binz.mean(axis=1) > 0.95
+    # The bar's STRUCTURE (cell separators, the divider, its outer frame) is
+    # 1 px lines; on a downscaled copy they blur to grey ~100 and fail the
+    # glyph threshold, the scale cell then starts one separator too early and
+    # the 'det' text is read as part of the bar (31 AP: 287 px for a 181 px
+    # bar). The background is ~4, so half of 128 still rejects it by a mile.
+    lines = band > _LINE_MIN
+    chrome = lines.mean(axis=1) > 0.95
 
     # 1) vertical separators / border = near-full-height white columns
-    col_ext = binz.sum(axis=0)
+    col_ext = lines.sum(axis=0)
     seps = [x for x in range(w) if col_ext[x] >= bh * 0.7]
     border = w - 1
     inner = [s for s in seps if s < border - 20]
@@ -191,7 +291,7 @@ def _detect_bar(gray: np.ndarray):
     for r in range(bh):
         if chrome[r]:
             continue
-        row = binz[r, x0:x1]
+        row = lines[r, x0:x1]
         xs = np.where(row)[0]
         if xs.size and (xs.max() - xs.min()) > 0.9 * cellw and row.mean() > 0.8:
             div = r
@@ -257,23 +357,41 @@ def _parse_label(text: str):
 
 def read_scale(image_path: str) -> ScaleResult:
     gray = np.array(Image.open(image_path).convert("L"))
+    rot = 0
     det = _detect_bar(gray)
     if det is None and gray.shape[0] > gray.shape[1]:
         # Portrait export: the instrument info bar is rotated to a side edge.
         # Rotate back to landscape and retry — nm-per-pixel is orientation-free.
         for k in (3, 1):                       # 90° CW, then CCW
-            rot = np.rot90(gray, k)
-            if _detect_bar(rot) is not None:
-                gray = rot
+            if _detect_bar(np.rot90(gray, k)) is not None:
+                gray, rot = np.rot90(gray, k), k
                 det = _detect_bar(gray)
                 break
-    h, w = gray.shape
+    w = gray.shape[1]
     top = _find_info_bar_top(gray)
+    fields = _read_fields(gray, top)
+    res = _read_bar(gray, det, fields, top)
+    res = _cross_check(res, fields, w)
+    res.info_top, res.rot, res.version = top, rot, READER_VERSION
+    if det is not None:
+        res.cell_x0, res.cell_x1, res.div_row = det[3], det[4], det[5]
+    # plain Python numbers out: numpy scalars leak into Qt (setVisible(np.bool_)
+    # raises TypeError — the scale check would not open, 2026-09-27)
+    for f in dataclasses.fields(res):
+        v = getattr(res, f.name)
+        if isinstance(v, np.generic):
+            setattr(res, f.name, v.item())
+    return res
+
+
+def _read_bar(gray, det, fields, top) -> ScaleResult:
+    """Calibration from HFW or the scale bar, before the magnification check."""
+    w = gray.shape[1]
     if det is None:
         # No bar geometry — but the metadata table may still carry HFW, which
         # calibrates the image outright. Split the header/value rows at the
         # bar's midline, which is where every layout seen so far puts them.
-        return _from_hfw(_read_fields(gray, top), w, top, "scale bar not found")
+        return _from_hfw(fields, w, top, "scale bar not found")
     lx, rx, bar_row, x0, x1, div_row = det
     bar_px = rx - lx
 
@@ -284,7 +402,6 @@ def read_scale(image_path: str) -> ScaleResult:
     # constrain OCR to digits + unit characters so "200"/"500" aren't misread
     txt = " ".join(_get_reader().readtext(up, detail=0,
                                           allowlist="0123456789.,nmµup "))
-    fields = _read_fields(gray, top)
     parsed = _parse_label(txt)
     if parsed is None:  # retry without the allowlist (rare fonts/units)
         txt = " ".join(_get_reader().readtext(up, detail=0))
@@ -298,8 +415,8 @@ def read_scale(image_path: str) -> ScaleResult:
     # Last net under the OCR: this instrument works between ~1 and ~30 nm/px, so
     # anything wildly outside that is a misread label rather than a real
     # calibration (a swallowed unit turning "1 µm" into "1 mm" lands here). Better
-    # to fail loudly — the caller lists the photo in a warning and shows 0 nm —
-    # than to write plausible-looking diameters that are off by a factor.
+    # to fail loudly — the caller lists the photo in a warning — than to write
+    # plausible-looking diameters that are off by a factor.
     if not (MIN_NM_PER_PX <= npp <= MAX_NM_PER_PX):
         return _from_hfw(fields, w, top,
                          f"implausible calibration: '{clean}' over {bar_px} px "
@@ -325,6 +442,100 @@ def read_scale(image_path: str) -> ScaleResult:
                            source="HFW", hfw_nm=hfw_npp * w)
     return ScaleResult(npp, bar_px, label_nm, clean, lx, rx, bar_row, True,
                        detector=_detector_of(fields), source="bar")
+
+
+def _instrument_of(fields: dict) -> str:
+    """The instrument, when its nameplate is on the bar (BIOMATEN prints its
+    name under the scale bar, so it lands in _read_fields as that cell's value)."""
+    for k, v in fields.items():
+        for name in INSTRUMENT_K_MM:
+            if name in f"{k} {v}".upper():
+                return name
+    return ""
+
+
+# OCR's letter-for-digit swaps inside a magnification ("12 O00 x" was read as
+# 1 200 and would have called a correct bar wrong by 10x)
+_MAG_FIX = str.maketrans({"O": "0", "o": "0", "D": "0", "Q": "0", "l": "1",
+                          "I": "1", "|": "1", "S": "5", "B": "8"})
+
+
+def _mag_of(fields: dict) -> int:
+    """The printed magnification ("16 000 x" -> 16000), or 0."""
+    vals = [v for k, v in fields.items() if k.startswith("MAG")]
+    if not vals:
+        # the cells ran together ("10.00 kV 40 000 X 1.00e-2 Pa"): take the one
+        # number that is followed by the x sign
+        vals = [m.group(1) for v in fields.values()
+                for m in re.finditer(r"(\d[\dOo ]*)\s*[xX×]\b", v)]
+    for v in vals:
+        m = re.match(r"\s*([\dOoDQlIS|B][\dOoDQlIS|B ]*)", v)
+        if not m:
+            continue
+        digits = m.group(1).translate(_MAG_FIX).replace(" ", "")
+        if digits.isdigit() and 10 <= int(digits) <= 2_000_000:
+            return int(digits)
+    return 0
+
+
+def _cross_check(res: ScaleResult, fields: dict, width_px: int) -> ScaleResult:
+    """Hold the calibration against the magnification, on instruments whose
+    constant is known. The bar is geometry plus a two-character OCR, and both
+    halves have failed silently (31 AP: the 'det' cell read as part of a bar,
+    and "5 µm" read as "3 µm" — 2.6x on every diameter, reported ok). The
+    magnification is a third, independent witness:
+
+      agree        within MAG_TOL — the bar stands, and now it is confirmed;
+      mag_misread  off by a clean power of ten — a zero lost in the mag OCR,
+                   the bar stands;
+      label_fixed  bar length × mag pins the label to a standard value other
+                   than the one read — the digit was misread, the label is
+                   replaced (the geometry was right);
+      conflict     none of the above — the bar is not trusted, the
+                   magnification is used, and the photo is flagged;
+      mag_only     the bar could not be read at all — calibrated from mag.
+
+    HFW calibrations are left alone: HFW outranks both, and the instrument
+    that writes it is the one with the wrong magnification field.
+    """
+    res.mag = _mag_of(fields)
+    res.instrument = _instrument_of(fields)
+    k = INSTRUMENT_K_MM.get(res.instrument)
+    if not (k and res.mag) or res.source == "HFW":
+        return res
+    res.mag_npp = mag_npp = k * 1e6 / (width_px * res.mag)
+    if not res.ok:
+        why = res.note
+        res.nm_per_px, res.ok, res.source, res.check = mag_npp, True, "mag", "mag_only"
+        res.note = f"scale bar unreadable ({why}); calibrated from the magnification"
+        return res
+    ratio = res.nm_per_px / mag_npp
+    if abs(ratio - 1) <= MAG_TOL:
+        res.check = "agree"
+        return res
+    decade = round(np.log10(ratio))
+    if decade and abs(ratio / 10.0 ** decade - 1) <= MAG_TOL:
+        res.check = "mag_misread"
+        res.note = (f"magnification read as {res.mag:,} x looks a power of ten off; "
+                    f"the scale bar agrees with {res.mag * 10.0 ** decade:,.0f} x")
+        return res
+    if res.bar_px:
+        fits = [L for L in STANDARD_LABELS_NM
+                if abs(L / (mag_npp * res.bar_px) - 1) <= MAG_TOL]
+        if len(fits) == 1:
+            old = res.label_read = res.label_text
+            L = fits[0]
+            res.label_nm = float(L)
+            res.label_text = (f"{L:g} nm" if L < 1000 else f"{L / 1000:g} µm")
+            res.nm_per_px = L / res.bar_px
+            res.check = "label_fixed"
+            res.note = (f"label read as '{old}', but the bar length and the "
+                        f"magnification only fit {res.label_text}")
+            return res
+    res.note = (f"scale bar ({res.nm_per_px:.3g} nm/px) disagrees with the "
+                f"magnification ({mag_npp:.3g} nm/px); using the magnification")
+    res.nm_per_px, res.source, res.check = mag_npp, "mag", "conflict"
+    return res
 
 
 def _hfw_npp(fields: dict, width_px: int) -> float:
@@ -358,8 +569,7 @@ def _cell_columns(gray: np.ndarray, top: int):
     """x boundaries of the info bar's cells, from its full-height separators."""
     band = gray[top:]
     bh = band.shape[0]
-    binz = band > 128
-    col = binz.sum(axis=0)
+    col = (band > _LINE_MIN).sum(axis=0)
     seps = [x for x in range(gray.shape[1]) if col[x] >= bh * 0.7]
     if not seps:
         return []

@@ -59,12 +59,15 @@ def _ui_cache_dir():
     return sub_dir("fonts")
 
 
-_SF_STYLES = (("Regular", 400), ("Semibold", 600), ("Bold", 700))
+# Heavy (800) is what the QSS asks for on the stat tiles (font-weight:800), and
+# what CoreText actually draws there from the variable system font. Exporting
+# those tiles in Bold made every exported number visibly thinner than on screen.
+_SF_STYLES = (("Regular", 400), ("Semibold", 600), ("Bold", 700), ("Heavy", 800))
 
 
 def _bake_sf_instances(styles=_SF_STYLES):
-    """Static Regular/Semibold/Bold cut from the variable system font. Cached on
-    disk — baking costs a few seconds, and only ever happens once."""
+    """Static Regular/Semibold/Bold/Heavy cut from the variable system font.
+    Cached on disk: baking costs a few seconds, and only ever happens once."""
     from fontTools.ttLib import TTFont
     from fontTools.varLib import instancer
     d = _ui_cache_dir()
@@ -130,7 +133,7 @@ def qt_ui_family():
         if not os.path.exists(_SF_VAR):
             return None
         ok = False
-        for p in _bake_sf_instances():
+        for p in _bake_sf_instances(_SF_STYLES[:3]):
             ok = QtGui.QFontDatabase.addApplicationFont(p) >= 0 or ok
         if not ok:
             return None
@@ -180,3 +183,41 @@ def matplotlib_ui_family():
             continue
     _ui_family = _ui_family or "DejaVu Sans"
     return _ui_family
+
+
+# ---- a real semibold for the chart title ----
+# SourceSerif4.ttf is variable too, and matplotlib only ever draws its default
+# instance (wght 400) whatever weight is asked for. The axis labels have always
+# looked that way on screen and stay so; the export title gets a genuine
+# semibold, baked once the same way as the UI faces.
+_SERIF_TITLE_FAMILY = "SEMPA Serif"
+_serif_title = None
+
+
+def matplotlib_title_family():
+    """Source Serif 4 SemiBold for matplotlib, or the plain serif family."""
+    global _serif_title
+    if _serif_title is not None:
+        return _serif_title
+    import matplotlib.font_manager as fm
+    try:
+        from fontTools.ttLib import TTFont
+        from fontTools.varLib import instancer
+        p = os.path.join(_ui_cache_dir(), "sempa_serif_v1_Semibold.ttf")
+        if not os.path.exists(p):
+            f = TTFont(SOURCE_SERIF)
+            instancer.instantiateVariableFont(f, {"wght": 600, "opsz": 20},
+                                              inplace=True)
+            nt = f["name"]
+            for nid, val in ((1, _SERIF_TITLE_FAMILY), (2, "Regular"),
+                             (4, f"{_SERIF_TITLE_FAMILY} Regular"),
+                             (6, "SEMPASerif-Regular"),
+                             (16, _SERIF_TITLE_FAMILY), (17, "Regular")):
+                nt.setName(val, nid, 3, 1, 0x409)
+                nt.setName(val, nid, 1, 0, 0)
+            f.save(p)
+        fm.fontManager.addfont(p)
+        _serif_title = _SERIF_TITLE_FAMILY
+    except Exception:
+        _serif_title = matplotlib_family()
+    return _serif_title

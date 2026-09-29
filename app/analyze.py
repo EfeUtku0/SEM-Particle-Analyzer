@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import sys
 import dataclasses
 from dataclasses import dataclass, field
 
@@ -25,7 +26,7 @@ try:
 except Exception:
     pass
 
-from info_bar_reader import read_scale, _find_info_bar_top, ScaleResult
+from info_bar_reader import read_scale, _find_info_bar_top, ScaleResult, READER_VERSION
 
 # scikit-image is imported inside the functions that segment, not here: it drags
 # in scipy.ndimage and costs ~0.3 s, which is most of the app's startup, and
@@ -736,6 +737,71 @@ class Analysis:
     evaluated_pattern: bool = True   # lets the GUI re-run when one is missing
     pipeline: str = ""               # pipeline_stamp() when this ran ("" = older
                                      # than the stamp, i.e. stale by definition)
+    scale_info: dict = None          # the ScaleResult behind nm_per_px, as a plain
+                                     # dict (where the bar was, what was read, the
+                                     # magnification check) — what the scale check
+                                     # shows. None on analyses older than it.
+
+    # ---- how an analysis is stored in session.pkl (2026-09-27) ------------
+    # The session had grown to 566 MB for 143 photos and was read and written on
+    # the GUI thread: the spinning cursor at startup and during every batch
+    # (a macOS disk-writes report caught 2.15 GB written in 32 minutes, all of
+    # it in pickle.dump). Two thirds of it was dead weight:
+    #   * the label mask, uint16 and mostly zeros — 359 MB raw, 17 MB through
+    #     zlib level 1 (0.69 s to pack all 143, 0.13 s to unpack);
+    #   * the micrograph, 179 MB — a byte-exact copy of pixels that are in the
+    #     image file anyway (see gray()). The overlay already draws from the
+    #     file, so a missing file was never viewable through this copy.
+    # Old sessions (plain arrays, micrograph included) still load unchanged.
+    def __getstate__(self):
+        d = self.__dict__.copy()
+        d.pop("_lm", None)
+        d.pop("_mask_pack", None)
+        d["label_mask"] = self._packed_mask()      # None when there is no mask
+        # …unless the file is gone: then this copy is the only one left, and
+        # dropping it would lose what cannot be re-read (4 of 143 on 2026-09-27)
+        if not (self.path and os.path.exists(self.path)):
+            return d
+        d["micrograph"] = None
+        return d
+
+    def __setstate__(self, d):
+        # the mask is NOT unpacked here: see _lm_get — a restored session holds
+        # every mask packed and opens one only when something asks for it
+        m = d.pop("label_mask", None)
+        d["_lm"], d["_mask_pack"] = (None, m) if isinstance(m, tuple) else (m, None)
+        self.__dict__.update(d)
+        if m is not None and not isinstance(m, tuple):
+            _mask_lru_touch(self)            # an old, unpacked session: let the
+                                             # LRU pack it away like any other
+
+    def _packed_mask(self):
+        """The packed form, made now if the mask changed since it was last
+        packed (packing all 143 costs 0.8 s, so it is kept, not redone per save)."""
+        d = self.__dict__
+        if d.get("_mask_pack") is None and d.get("_lm") is not None:
+            d["_mask_pack"] = _pack_mask(d["_lm"])
+        return d.get("_mask_pack")
+
+    def gray(self):
+        """The micrograph as analysed (info bar cropped off).
+
+        Kept only in memory: re-read from the image file on first use and cut
+        to the MASK's height, not re-measured — the crop is then exactly the
+        one the masks were made on, whatever the info-bar reader says today.
+        None if the file is gone (callers skip the photo)."""
+        if self.micrograph is None and self.path:
+            try:
+                g = np.array(Image.open(self.path).convert("L"))
+            except OSError:
+                return None
+            h = (self.label_mask.shape[0] if self.label_mask is not None
+                 else _find_info_bar_top(g))
+            if g.shape[0] < h or (self.label_mask is not None
+                                  and g.shape[1] != self.label_mask.shape[1]):
+                return None            # a different picture now under this name
+            self.micrograph = g[:h, :]
+        return self.micrograph
 
     def reclassify(self, facet_thresh: float):
         for p in self.particles:
@@ -938,6 +1004,76 @@ def _interior_structure(gray: np.ndarray, masks: np.ndarray, regions) -> float:
 _SEG_VERSION = 1
 
 
+def _pack_mask(m):
+    """A label mask as it is stored in session.pkl (see Analysis.__getstate__)."""
+    import zlib
+    m = np.ascontiguousarray(m)
+    return ("zlib1", m.shape, m.dtype.str, zlib.compress(m.tobytes(), 1))
+
+
+def _unpack_mask(t):
+    import zlib
+    tag, shape, dt, blob = t
+    if tag != "zlib1":
+        raise ValueError(f"unknown mask packing {tag!r}")
+    return np.frombuffer(zlib.decompress(blob), dtype=np.dtype(dt)).reshape(shape).copy()
+
+
+# ---- label masks are opened on demand (2026-09-27) ------------------------
+# "Opening a photo freezes the app for a while": on the user's 8 GB Mac, 4.3 of
+# 5 GB of swap was in use and the app's 890 MB footprint was mostly swapped out
+# between clicks; 359 of the 481 MB a loaded session holds were label masks —
+# one per photo, all unpacked, while the screen only ever shows one. Now each
+# analysis keeps its mask PACKED (17 MB for all 143) and label_mask unpacks it
+# on first use (~1 ms); only the last _MASK_OPEN analyses keep theirs open, the
+# rest go back to packed form (re-packed first if they were edited).
+# label_mask stays an ordinary attribute to every caller. The one in-place
+# edit (apply_count_floors) writes the mask back through the setter, which is
+# what marks the old packing stale.
+import weakref as _weakref
+from collections import OrderedDict as _OrderedDict
+
+_MASK_OPEN = 8
+_mask_lru = _OrderedDict()                  # id -> weakref(Analysis)
+
+
+def _mask_lru_touch(a):
+    key = id(a)
+    ref = _mask_lru.pop(key, None)
+    if ref is None or ref() is not a:
+        ref = _weakref.ref(a)
+    _mask_lru[key] = ref
+    while len(_mask_lru) > _MASK_OPEN:
+        _k, old = _mask_lru.popitem(last=False)
+        o = old()
+        if o is not None and o.__dict__.get("_lm") is not None:
+            o._packed_mask()                 # keep the edit, if there was one
+            o.__dict__["_lm"] = None
+
+
+def _lm_get(self):
+    d = self.__dict__
+    m = d.get("_lm")
+    if m is None:
+        pk = d.get("_mask_pack")
+        if pk is None:
+            return None
+        m = d["_lm"] = _unpack_mask(pk)
+    _mask_lru_touch(self)
+    return m
+
+
+def _lm_set(self, m):
+    d = self.__dict__
+    d["_lm"] = m
+    d["_mask_pack"] = None                   # packed again only when needed
+
+
+# label_mask is a dataclass field (constructor, replace(), fields() all see it)
+# served through a property, so the mask can live packed — see _lm_get
+Analysis.label_mask = property(_lm_get, _lm_set)
+
+
 def _compact_labels(masks):
     """Label images as the smallest integer type that fits.
 
@@ -1011,15 +1147,26 @@ def apply_count_floors(analysis) -> int:
     to be analysed again.
     """
     a = analysis
+    done = (MIN_COUNT_AREA_PX, MIN_COUNT_DIAM_PX)
+    if getattr(a, "_count_floors", None) == done:
+        return 0                 # before touching the mask: opening it costs
     m = a.label_mask
     if m is None or not a.particles:
         return 0
+    # Once per analysis and floor setting, not on every launch. This runs over
+    # every saved analysis while the window sits frozen at startup, and counting
+    # a 1.5-million-pixel mask is ~4 ms whichever way it is done (np.unique and
+    # np.bincount measured the same): 0.6 s for 135 photos, 2026-09-24, to
+    # conclude each time that nothing needed dropping. The mark rides along in
+    # session.pkl; changing a floor changes the mark, so they are re-applied.
+    # (It is checked at the top, before the mask is opened.)
     ids, cnt = np.unique(m[m > 0], return_counts=True)
     area = dict(zip(ids.tolist(), cnt.tolist()))
     keep = [p for p in a.particles
             if area.get(p.id, 0) >= MIN_COUNT_AREA_PX
             and p.diam_px >= MIN_COUNT_DIAM_PX]
     dropped = len(a.particles) - len(keep)
+    a._count_floors = done
     if not dropped:
         return 0
     a.particles = keep
@@ -1027,30 +1174,54 @@ def apply_count_floors(analysis) -> int:
     for p in keep:
         alive[p.id] = True
     m[~alive[m]] = 0            # and out of the mask, so no ghost outlines
+    a.label_mask = m            # written back: marks the stored packing stale
+    od = sys.modules.get("overlay_draw")   # its cached borders are now stale
+    if od is not None:
+        od.forget_mask(m)
     return dropped
 
 
-def _read_scale_cached(image_path):
+def scale_info_dict(sc) -> dict:
+    """A ScaleResult as the plain dict Analysis.scale_info stores."""
+    return {k: (v.item() if isinstance(v, np.generic) else v)
+            for k, v in dataclasses.asdict(sc).items()}   # numpy ints -> JSON
+
+
+def _read_scale_cached(image_path, manual=True, cached_only=False):
     """read_scale() runs EasyOCR on the info bar — ~4 s, and its answer depends
     only on the file's own pixels, exactly like the segmentation cache. Re-running
     an image (a new threshold, a retrained pattern net) shouldn't pay for it
-    twice. Cached next to the masks, keyed by path+mtime+size."""
+    twice. Cached next to the masks, keyed by path+mtime+size.
+
+    `cached_only` never runs the OCR: None when there is no current cache
+    (the start-up fill of older analyses' scale check, which must not pull
+    EasyOCR and torch into memory on an 8 GB machine)."""
     import json
+    # a scale the user set by hand outranks anything read off the pixels
+    import scale_overrides
+    hand = scale_overrides.get(image_path) if manual else None
+    if hand is not None:
+        return hand
     ck = _mask_cache_path(image_path)
     ck = ck and ck[:-4] + ".scale.json"
     if ck and os.path.exists(ck):
         try:
             with open(ck) as f:
-                return ScaleResult(**json.load(f))
+                sc = ScaleResult(**json.load(f))
+            # a cache written by an older reader holds the older reader's
+            # answer — for a WhatsApp copy that was 0 nm/px, or 31 AP's silent
+            # 2.6x — so it only counts when the same reader wrote it
+            if sc.version == READER_VERSION:
+                return sc
         except Exception:
             pass                                  # stale/corrupt -> just re-read
+    if cached_only:
+        return None
     sc = read_scale(image_path)
     if ck:
         try:
-            d = {k: (v.item() if isinstance(v, np.generic) else v)
-                 for k, v in dataclasses.asdict(sc).items()}   # numpy ints -> JSON
             with open(ck, "w") as f:
-                json.dump(d, f)
+                json.dump(scale_info_dict(sc), f)
         except OSError:
             pass
     return sc
@@ -1177,6 +1348,7 @@ def analyze_image(image_path: str, facet_thresh: float = DEFAULT_FACET_THRESH,
                         evaluated_class=do_class or do_pattern,
                         evaluated_pattern=do_pattern,
                         pipeline=pipeline_stamp())
+    analysis.scale_info = scale_info_dict(scale)
     if classifiable:
         analysis.reclassify(facet_thresh)
     # Hand the GPU blocks Cellpose just used back to the system. On an 8 GB

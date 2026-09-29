@@ -47,16 +47,50 @@ def reload():
 
 
 def _get_net():
+    """The net on the fastest device there is (see _infer for why not the CPU)."""
     global _net
     if _net is None:
         import torch
-        _net = torch.jit.load(_model_path(), map_location="cpu")
+        dev = model_pattern_crops.torch_device()
+        try:
+            _net = torch.jit.load(_model_path(), map_location=dev)
+        except Exception:
+            _net = torch.jit.load(_model_path(), map_location="cpu")
         _net.eval()
     return _net
 
 
+def _net_device(net):
+    try:
+        return next(net.parameters()).device
+    except StopIteration:
+        import torch
+        return torch.device("cpu")
+
+
+def _infer(net, Xt):
+    """Softmax over every crop, in batches, on whichever device `net` is on.
+
+    This used to run on the CPU because "the net is tiny". It is not: a resnet18
+    at 128 px, run once per particle. On the M2 it was 14.6 s for 1522 crops,
+    i.e. 16 of the 19 s a cached re-analysis took; the Apple GPU does the same
+    batch in 1.2 s (2026-09-24). Same answers: the largest probability
+    difference measured was 7e-6 and every one of the 1522 particles kept its
+    class. Batches are smaller on the CPU fallback, where 64 beat 256
+    (11.0 vs 14.6 s)."""
+    import torch
+    dev = _net_device(net)
+    bs = 64 if dev.type == "cpu" else 128
+    out = []
+    with torch.no_grad():
+        for i in range(0, len(Xt), bs):
+            out.append(net(Xt[i:i + bs].to(dev)).softmax(1).cpu().numpy())
+    return np.concatenate(out)
+
+
 def pattern_probs(gray, masks, regions, nm_per_px):
     """Return {label_id: prob_vector[4]} for the given regionprops list."""
+    global _net
     import torch
     imgs, sils, dnm, ids = [], [], [], []
     g = gray.astype(np.float32)
@@ -72,9 +106,13 @@ def pattern_probs(gray, masks, regions, nm_per_px):
     X = model_pattern_crops.featurize_batch(np.array(imgs), np.array(sils), np.array(dnm))
     Xt = torch.tensor(X)
     net = _get_net()
-    out = []
-    with torch.no_grad():
-        for i in range(0, len(Xt), 256):
-            out.append(net(Xt[i:i + 256]).softmax(1).numpy())
-    p = np.concatenate(out)
+    try:
+        p = _infer(net, Xt)
+    except RuntimeError:
+        if _net_device(net).type == "cpu":
+            raise
+        # a GPU that fails mid-run (out of memory on a small machine, a driver
+        # hiccup) must not fail the analysis: finish on the CPU, and stay there
+        _net = net = torch.jit.load(_model_path(), map_location="cpu").eval()
+        p = _infer(net, Xt)
     return {lab: p[k] for k, lab in enumerate(ids)}
