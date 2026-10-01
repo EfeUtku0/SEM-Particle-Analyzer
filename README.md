@@ -91,6 +91,15 @@ it → Open → Open** (a plain double-click gets refused: the app is unsigned).
 Everything it needs is inside the bundle, including the models — it never asks
 for the internet.
 
+**Windows (64-bit):** take the zip from
+[**v1.2.0-windows**](https://github.com/EfeUtku0/BiSn-Particle-SEM-Analyzer/releases/tag/v1.2.0-windows),
+right-click it → *Extract All…*, and start `SEM Particle Analyzer.exe` in the
+extracted folder. The first launch shows *Windows protected your PC*: **More
+info → Run anyway** (the app is unsigned). The models are inside the folder, so
+it needs no internet either. This build runs on the processor, which takes
+minutes per photo; with an NVIDIA card, run from source with CUDA instead
+(seconds per photo, see [docs/windows.md](docs/windows.md)).
+
 **Anywhere else — from source.** You need **Python 3.11–3.13** and about **6 GB
 of free disk**:
 
@@ -112,9 +121,10 @@ while PyTorch warms up; every one after that takes seconds.
 |---|---|
 | macOS, Apple Silicon (M1–M4) | tested — GPU (MPS) accelerated |
 | macOS, Intel | not supported: PyTorch no longer ships wheels for it |
-| Windows / Linux, x86-64 | should work from source; Cellpose falls back to the CPU without an NVIDIA card, which makes the first pass slow but correct |
+| Windows 11, x86-64 | tested: the download above, or from source; NVIDIA (CUDA) accelerated from source, otherwise CPU at 8 to 9 min per photo on a laptop i5, same results |
+| Linux, x86-64 | should work from source; Cellpose falls back to the CPU without an NVIDIA card, which makes it slow but correct |
 
-There is no prebuilt Windows or Intel-Mac download: PyInstaller does not
+There is no prebuilt Linux or Intel-Mac download: PyInstaller does not
 cross-compile, so each one has to be built on the platform it runs on (see
 *Building a distributable app* below).
 
