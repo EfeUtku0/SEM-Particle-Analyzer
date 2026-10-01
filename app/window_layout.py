@@ -19,7 +19,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import training_store
 
 from chart_data import CLASS_ORDER, CLASS_LABELS, CLASS_COLORS
-from ui_theme import _sep, _chip_qss
+from ui_theme import _sep, _chip_qss, set_ui_size, ui_size
 from widget_image_view import ImageView, ScaledImage
 from widget_tiles import CheckMenu, Tile, AspectCard
 from widget_library_tree import LibraryTree, SearchBox, SearchDelegate
@@ -195,7 +195,7 @@ class WindowLayout:
         def _sect(lab):
             a = self._save_menu.addAction(lab)
             a.setEnabled(False)                     # a heading, not an item
-            f = a.font(); f.setBold(True); f.setPointSize(f.pointSize() - 2)
+            f = a.font(); f.setBold(True); set_ui_size(f, ui_size(f) - 2)
             a.setFont(f)
             return a
 

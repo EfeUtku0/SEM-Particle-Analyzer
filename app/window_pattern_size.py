@@ -13,6 +13,8 @@ split cannot — a band in the middle of the axis.
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from ui_theme import set_ui_size
+
 # Classes shown, bottom→top in the stack. "solid" (crystalline but no pattern
 # assigned) is intentionally NOT shown — it's noise for size-rule design — and is
 # filtered out of the data entirely, so the percentages are shares of the
@@ -190,7 +192,7 @@ class _Plot(QtWidgets.QWidget):
             col(ml + i * bw, bw, c, n)
 
         # axis labels only — no gridlines (250 / 500 / 750 / 1000, then 1500+)
-        f = p.font(); f.setPointSizeF(9.5); p.setFont(f); p.setPen(_MUTED)
+        f = p.font(); set_ui_size(f, 9.5); p.setFont(f); p.setPen(_MUTED)
         for t in (250, 500, 750, 1000):
             x = ml + plot_w * t / _AXIS_MAX
             p.drawText(QtCore.QRectF(x - 28, top_y + top_h + 4, 56, 15),
@@ -227,10 +229,10 @@ class _Plot(QtWidgets.QWidget):
         y = top_y + top_h + 30
         # header: the range on the left, how many particles fall in it on the
         # right (bare number — the panel is narrow, so "particles" is dropped)
-        f.setPointSizeF(11); f.setBold(True); p.setFont(f); p.setPen(_INK)
+        set_ui_size(f, 11); f.setBold(True); p.setFont(f); p.setPen(_INK)
         p.drawText(QtCore.QRectF(bar_x, y, bar_w, 18), QtCore.Qt.AlignLeft,
                    self.range_text())
-        f.setBold(False); f.setPointSizeF(10); p.setFont(f); p.setPen(_MUTED)
+        f.setBold(False); set_ui_size(f, 10); p.setFont(f); p.setPen(_MUTED)
         p.drawText(QtCore.QRectF(bar_x, y, bar_w, 18), QtCore.Qt.AlignRight,
                    f"n = {n_in}")
 
@@ -246,18 +248,18 @@ class _Plot(QtWidgets.QWidget):
             chip = QtCore.QRectF(ml + 2, yy + row_h / 2 - 5, 10, 10)
             pth = QtGui.QPainterPath(); pth.addRoundedRect(chip, 2.5, 2.5)
             p.fillPath(pth, _qc(cls))
-            f.setPointSizeF(11); p.setFont(f); p.setPen(_INK)
+            set_ui_size(f, 11); p.setFont(f); p.setPen(_INK)
             p.drawText(QtCore.QRectF(ml + 20, yy, name_w - 20, row_h),
                        QtCore.Qt.AlignVCenter, LABELS[cls])
             # values
             k = cnt[cls]
             pct = 100.0 * k / n_in if n_in else 0.0
             z = (k == 0)
-            f.setPointSizeF(11.5); f.setBold(not z); p.setFont(f)
+            set_ui_size(f, 11.5); f.setBold(not z); p.setFont(f)
             p.setPen(_FAINT if z else _INK)
             p.drawText(QtCore.QRectF(bar_x, yy, bar_w - 62, row_h),
                        QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, f"{pct:.1f}%")
-            f.setBold(False); f.setPointSizeF(10.5); p.setFont(f); p.setPen(_FAINT)
+            f.setBold(False); set_ui_size(f, 10.5); p.setFont(f); p.setPen(_FAINT)
             p.drawText(QtCore.QRectF(bar_x + bar_w - 58, yy, 58, row_h),
                        QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter, f"({k})")
             yy += row_h

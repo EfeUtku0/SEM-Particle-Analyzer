@@ -155,7 +155,16 @@ def _get_model():
     global _model
     if _model is None:
         from cellpose import models
-        _model = models.CellposeModel(gpu=True)
+        from cellpose.core import assign_device
+        # Cellpose loads cpsam in bfloat16 by default. That is right on a GPU
+        # (MPS, CUDA), but a CPU without native bf16 runs it through a slow,
+        # mostly single-threaded fallback: on a Windows i5-12450H the attention
+        # and linear layers were 34x slower than in float32, and one analysis
+        # had not finished after 25 minutes. Without a GPU, use float32.
+        # (Cellpose's own device choice, so this agrees with what it would pick.)
+        device, on_gpu = assign_device(gpu=True)
+        _model = models.CellposeModel(gpu=True, device=device,
+                                      use_bfloat16=on_gpu)
     return _model
 
 

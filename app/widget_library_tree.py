@@ -15,6 +15,7 @@ import os
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from image_files import IMG_EXT
+from ui_theme import set_ui_size, ui_size
 
 ROLE_PATH = QtCore.Qt.UserRole        # image item -> file path (never mutated)
 ROLE_KIND = QtCore.Qt.UserRole + 1    # node kind -> "folder" or "image"
@@ -286,7 +287,7 @@ class SearchDelegate(QtWidgets.QStyledItemDelegate):
         fm = QtGui.QFontMetrics(f)
         painter.drawText(tr, QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop,
                          fm.elidedText(name, QtCore.Qt.ElideMiddle, tr.width()))
-        f2 = QtGui.QFont(option.font); f2.setPointSizeF(max(8.5, f.pointSizeF() - 2.5))
+        f2 = QtGui.QFont(option.font); set_ui_size(f2, max(8.5, ui_size(f) - 2.5))
         painter.setFont(f2)
         painter.setPen(QtGui.QColor(self.PATH_FG))
         fm2 = QtGui.QFontMetrics(f2)

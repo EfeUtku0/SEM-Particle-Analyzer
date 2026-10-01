@@ -1,7 +1,10 @@
 # --- environments & build output -------------------------------------------
 .venv/
+.venv-*/
 build/
 dist/
+# the zipped Windows build (docs/windows.md writes it to the repo root)
+/*.zip
 _eski_surum/
 *.egg-info/
 __pycache__/

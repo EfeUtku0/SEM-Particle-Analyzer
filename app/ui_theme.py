@@ -30,6 +30,28 @@ def keys(text: str) -> str:
     return text.replace("⌘ + ", "Ctrl + ").replace("⌘+", "Ctrl+").replace("⌘", "Ctrl+")
 
 
+def ui_size(font: QtGui.QFont) -> float:
+    """A font's size in the units the UI is tuned in (see set_ui_size)."""
+    if sys.platform != "darwin" and font.pixelSize() > 0:
+        return float(font.pixelSize())
+    pt = font.pointSizeF()
+    return pt if sys.platform == "darwin" or pt <= 0 else pt * 96 / 72
+
+
+def set_ui_size(font: QtGui.QFont, size: float) -> None:
+    """Size a QFont the way the rest of the UI is sized.
+
+    Every size in the app was tuned on macOS, where 1 pt draws 1 px. Windows
+    counts points at 96 dpi, so the same number comes out a third larger there,
+    and the app font is set in PIXELS instead (gui.main) — which also makes
+    font.pointSize() answer -1, so "pointSize() - 2" asked Qt for -3 pt. On
+    macOS this is exactly setPointSizeF(size), as before."""
+    if sys.platform == "darwin":
+        font.setPointSizeF(size)
+    else:
+        font.setPixelSize(max(1, round(size)))
+
+
 STYLE = """
 QWidget { background:#ffffff; color:#1a2129; font-size:13px; font-weight:600; }
 QLabel#h { color:#8a95a1; font-size:11px; font-weight:800; letter-spacing:1px; }

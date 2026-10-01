@@ -23,8 +23,16 @@ the Cellpose (`cpsam`, ~1.2 GB) and EasyOCR weights into your home folder, once.
 
 `pip` installs the CPU build of PyTorch on Windows. With an NVIDIA card, the
 CUDA build makes Cellpose many times faster:
-`.venv\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124`
-(the app picks the GPU up by itself).
+`.venv\Scripts\pip install --force-reinstall --no-deps torch==<the version pip installed> torchvision==<same> --index-url https://download.pytorch.org/whl/cu126`
+(the app picks the GPU up by itself). Pin the versions `pip list` shows: an
+index that lacks them (cu124 no longer carries torch 2.14) quietly installs an
+older torch instead. Measured on an RTX 3050 Laptop (4 GB): the first analysis
+68 s, every one after it 15 s, against 8 to 9 min per image on that laptop's CPU.
+
+Build the download from a separate CPU-only environment (`py -3.13 -m venv
+.venv-cpu`, then the same `pip install -r requirements.txt`): the CUDA build
+of torch alone adds about 2.5 GB, which would push the zip past GitHub's
+2 GB limit for a release asset.
 
 ## Checklist
 
@@ -51,8 +59,10 @@ Run from source first; the console shows any error.
 PyInstaller does not cross-compile, so this runs on Windows:
 
 ```powershell
-.venv\Scripts\pyinstaller --noconfirm --clean sem_analyzer.spec
+.venv-cpu\Scripts\pyinstaller --noconfirm --clean sem_analyzer.spec
 ```
+
+(Plain `.venv` is fine too if you never installed the CUDA build into it.)
 
 Run one analysis from source before building: the spec copies the model
 weights from `%USERPROFILE%\.cellpose` and `%USERPROFILE%\.EasyOCR`, and a build
