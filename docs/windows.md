@@ -11,8 +11,8 @@ build) and about 6 GB of free disk.
 
 ```powershell
 winget install Python.Python.3.13
-git clone https://github.com/EfeUtku0/BiSn-Particle-SEM-Analyzer.git
-cd BiSn-Particle-SEM-Analyzer
+git clone https://github.com/EfeUtku0/SEM-Particle-Analyzer.git
+cd SEM-Particle-Analyzer
 py -3.13 -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\python app\gui.py

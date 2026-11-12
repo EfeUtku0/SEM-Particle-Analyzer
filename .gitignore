@@ -46,3 +46,6 @@ mask_cache/
 tools/
 app/assets/*.bak.pt
 app/assets/patternnet_oldsmallcnn.pt.bak
+
+# internal method map, kept local
+SEM_Analyzer_diyagram.drawio
