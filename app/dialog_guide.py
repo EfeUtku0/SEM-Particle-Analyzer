@@ -114,10 +114,6 @@ class GuideDialog(QtWidgets.QDialog):
                 f"Click a hit to look at it, {k('double-click')} it (or press "
                 f"{k('Enter')}) to jump to where it sits in the tree, {k('Esc')} to "
                 f"go back.",
-                f"{k('✨ Sort')} reads the file names and files everything by "
-                f"sample number, then by region (Alt / Karışık / Üst) or under "
-                f"{k('Pattern')} by class. It shows the plan first and only moves "
-                f"rows in the panel — never your files.",
                 f"Select one or several images (or a folder) and press "
                 f"{k('🔬 Analyze')}. With several selected the results are pooled "
                 f"into one distribution. Pressing Analyze again re-runs from "
@@ -165,11 +161,11 @@ class GuideDialog(QtWidgets.QDialog):
                 f"The number-key tools ({k('1–6')}, {k('0')} to exclude) repaint a "
                 f"particle's class, but only for <b>this view and your exports</b> "
                 f"— they do <b>not</b> teach the model.",
-                f"Naming a class never changes what is measured: a {blue} "
-                f"particle you call lamellar stays out of the size statistics, "
-                f"and a measured one you right-click keeps its class but loses "
-                f"its size. Only the {k('📏 Measure')} tool moves a particle in "
-                f"or out. Note that {k('Analyze')} decides the photo again from "
+                f"Naming a class also measures the particle. A {blue} particle "
+                f"you call lamellar joins the size statistics as lamellar, "
+                f"so there is no need to press {k('Measure')} on it first. "
+                f"{k('Right-click')} still takes a particle out and it keeps its "
+                f"class. Note that {k('Analyze')} decides the photo again from "
                 f"scratch: every correction you made on it by hand — classes, "
                 f"exclusions and measure decisions alike — is discarded, so what "
                 f"you see is one consistent answer rather than a mix of old and "
@@ -262,12 +258,15 @@ class GuideDialog(QtWidgets.QDialog):
                 f"score — that is the number to quote outside this app; the "
                 f"scale here is stretched onto the band real particles occupy so "
                 f"that photos spread out instead of all reading 0.9-something.",
-                f"{k('Cumulative')} reads the distribution the other way round — "
-                f"what share of the particles is at or below a given diameter — "
-                f"and gives you {k('D10 / D50 / D90')} and the span, the numbers a "
-                f"Zetasizer-style report is usually quoted with. The thin coloured "
-                f"curves are the individual classes, so you can see at a glance "
-                f"which class runs larger.",
+                f"Every other share in the app counts particles. {k('Volume')} "
+                f"counts material instead: each particle weighs as much as its "
+                f"volume, taken as a sphere of its measured diameter. Small "
+                f"particles are mostly undercooled, so a photo that looks almost "
+                f"all Janus can be 60 % undercooled by number and 15 % by volume. "
+                f"The two bars show both, and the chart under them shows which "
+                f"sizes carry the volume. A few large particles hold most of it, "
+                f"so each share comes with its 95 % interval (the ± beside it). "
+                f"Pooling several photos narrows it.",
                 f"{k('💾 Save')} exports the chart and the SEM overlay exactly as "
                 f"they look on screen — including every correction you've made.",
             ]),

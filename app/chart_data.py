@@ -369,14 +369,15 @@ def d_values(diams):
     (D90-D10)/D50, a scale-free width of the distribution. Returns None when
     there is nothing measured.
 
-    These are NUMBER-based percentiles — every particle counts once. That is the
-    only thing image analysis can give (we count particles, not scattered light),
-    and it is what this app reports on purpose. It is NOT the same quantity a
+    These are NUMBER-based percentiles — every particle counts once, which is
+    what image analysis measures directly. It is NOT the same quantity a
     Zetasizer or a laser-diffraction instrument prints: those default to
     VOLUME-weighted Dv values, where each particle counts as d³, which shifts the
     percentiles up enormously on a polydisperse sample — measured on this user's
     43 photos, Dv50 came out 1216 nm against Dn50 259 nm, a factor of 4.7. So do
     not put these side by side with a Zetasizer D50 as if they were comparable.
+    (The Volume tab does the d³ weighting for the CLASS shares; see
+    volume_shares.)
     """
     d = np.asarray(diams, float)
     d = d[np.isfinite(d)]
@@ -387,18 +388,119 @@ def d_values(diams):
                 span=(d90 - d10) / d50 if d50 else 0.0)
 
 
-def cumulative_tiles(target):
-    """The tile rows for the Cumulative view — same shape as stat_tiles()."""
-    dv = d_values(target.diam_array(whole_only=True)) if target is not None else None
-    if dv is None:
-        return [[("D10", "—", "", None), ("D50", "—", "", None),
-                 ("D90", "—", "", None)],
-                [("SPAN", "—", "", None), ("MEASURED", "0", "", None)]]
-    return [[("D10", f"{dv['d10']:.0f}", "nm", None),
-             ("D50", f"{dv['d50']:.0f}", "nm", None),
-             ("D90", f"{dv['d90']:.0f}", "nm", None)],
-            [("SPAN", f"{dv['span']:.2f}", "(D90−D10)/D50", None),
-             ("MEASURED", f"{dv['n']}", "particles", None)]]
+# ---- the Volume tab: class shares by material, not by particle count -------
+# (user request, 2026-11-14). Every other share in the app is a NUMBER share:
+# each particle counts once. Small particles are mostly undercooled, so a photo
+# that looks almost all janus can still read "60% undercooled" — true as a count
+# of particles, but not what the photo is made of. Here each particle counts by
+# its volume, (π/6)·d³, taking it as a sphere: its projected outline is the
+# sphere's great circle, so the equivalent diameter IS the sphere's diameter.
+# (π/6 cancels in every share and is never applied.) For equal densities this
+# is also the MASS share — the quantity a DSC enthalpy is proportional to.
+#
+# Measured before it was built (2026-11-14, read-only over the session):
+#   163 classifiable photos, 100415 particles: undercooled is 60% by number and
+#   16% by volume (median photo); 59 photos flip from a majority to a minority.
+#   On the golden set the model's volume shares sit within 2-6 points of the
+#   hand-labelled ones per class, and volume-weighted accuracy (85.3%) equals
+#   the number-weighted one (85.4%).
+#   Frame-edge (Horvitz-Thompson) correction for big particles being cut by the
+#   frame moved a photo's volume share by 0.5 points (median), 7.5 at worst —
+#   smaller than the sampling interval below, so it is not applied.
+#
+# The catch is how few particles carry the answer: in the median photo half the
+# volume sits in 46 particles. So every volume share comes with its 95%
+# interval, from the linearised (delta-method) variance of a ratio estimator —
+# deterministic, 0.08 s on 100k particles, and checked against a 400-sample
+# bootstrap on 157 photos: the half-widths differ by 0.1 points (median), 1.4
+# at worst.
+
+# the bar segments, in stacking order. "nopattern" is crystalline with no
+# readable pattern: it belongs to Solid (so the bar still sums to the measured
+# set) but to none of the four named patterns.
+VOLUME_SEGMENTS = ["undercooled", "janus", "stripe", "lamellar", "composite",
+                   "nopattern"]
+VOLUME_LABELS = {**CLASS_LABELS, "nopattern": "Solid, no pattern"}
+VOLUME_COLORS = {**CLASS_COLORS, "nopattern": "#e7a39d"}
+VOLUME_EDGES = {**CLASS_EDGES, "nopattern": "#c97a73"}
+VOLUME_TILE_KEYS = ["undercooled", "solid", "janus", "stripe", "composite",
+                    "lamellar"]           # the same six, in the same order, as
+                                          # the class row of the All tab
+
+
+def volume_rows(target):
+    """(diameters, segment keys) over the measured, classified set — the same
+    particles class_counts() counts: measured, not hand-marked "class unclear".
+    Unlike class_diams() the crystalline particles with no pattern are KEPT (as
+    "nopattern"): leaving them out would hand their volume to the other classes.
+    Empty arrays when nothing in the selection is classifiable."""
+    from analyze import measurable
+    d, k = [], []
+    analyses = getattr(target, "analyses", None) or [target]
+    for a in analyses:
+        if not getattr(a, "classifiable", False):
+            continue
+        for p in a.particles:
+            if not getattr(p, "diam_nm", 0) or not measurable(p):
+                continue
+            if getattr(p, "unclassified", False):
+                continue
+            d.append(p.diam_nm)
+            if not p.is_solid:
+                k.append("undercooled")
+            else:
+                k.append(p.pattern if p.pattern in CLASS_COLORS else "nopattern")
+    return np.asarray(d, float), np.asarray(k, dtype=object)
+
+
+def _ratio_ci(w, z):
+    """Share Σw·z / Σw and the half-width of its 95% interval (delta method)."""
+    tot = w.sum()
+    p = float((w * z).sum() / tot)
+    se = float(np.sqrt(((w * (z - p)) ** 2).sum()) / tot)
+    return p, 1.96 * se
+
+
+def volume_shares(target):
+    """Number and volume share of each segment, plus Solid (= not undercooled),
+    each volume share with its 95% half-width. None when nothing is classified
+    or the selection is all one state (one bucket is not a composition)."""
+    if target is None:
+        return None
+    d, k = volume_rows(target)
+    if d.size == 0 or len(set(k)) < 2:
+        return None
+    v = d ** 3
+    keys = VOLUME_SEGMENTS + ["solid"]
+    by_n, by_v, ci = {}, {}, {}
+    for key in keys:
+        z = (k != "undercooled") if key == "solid" else (k == key)
+        z = z.astype(float)
+        by_n[key] = float(z.mean())
+        by_v[key], ci[key] = _ratio_ci(v, z)
+    vs = np.sort(v)[::-1]
+    half = int(np.searchsorted(np.cumsum(vs), vs.sum() / 2)) + 1
+    return dict(n=int(d.size), by_number=by_n, by_volume=by_v, ci=ci,
+                half_n=half)
+
+
+def volume_tiles(target):
+    """The tile rows under the Volume figure — same shape as stat_tiles(): each
+    class's share of the volume, with its ± (95%) beside it."""
+    vs = volume_shares(target)
+    caps = [(STAT_LABELS[key].upper(), STAT_COLORS[key])
+            for key in VOLUME_TILE_KEYS]
+    if vs is None:
+        cells = [(cap, "—", "", col) for cap, col in caps]
+    else:
+        cells = []
+        for (cap, col), key in zip(caps, VOLUME_TILE_KEYS):
+            p, h = vs["by_volume"][key], vs["ci"][key]
+            val = share_text(p, 1.0)
+            # nothing of the class at all is not "0 ± 0", it is just absent
+            sub = ("" if p == 0 else f"±{100 * h:.0f}" if h >= 0.005 else "±<1")
+            cells.append((cap, val, sub, col))
+    return [cells[:3], cells[3:]]
 
 
 def solid_split(target):

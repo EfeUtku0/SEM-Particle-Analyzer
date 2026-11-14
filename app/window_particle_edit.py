@@ -446,6 +446,23 @@ class ParticleEditor:
                   "stripe": "solid:stripe", "lamellar": "solid:lamellar",
                   "composite": "solid:composite"}
 
+    def _include_on_classify(self, pid):
+        """Bring a particle into the size statistics when the user names its
+        class: undo a right-click exclusion, and force-include it past the
+        occlusion / frame gate. A particle the gate already measures is left
+        exactly as it is."""
+        a = self.results.get(self.current)
+        p = next((q for q in a.particles if q.id == pid), None) if a else None
+        if p is None:
+            return
+        mexc = self.measure_exclude.get(self.current)
+        if mexc is not None:
+            mexc.discard(pid)
+            if not mexc:
+                self.measure_exclude.pop(self.current, None)
+        if not analyze.measurable(p):
+            self.measure_include.setdefault(self.current, set()).add(pid)
+
     def _set_particle_class(self, pid, cls):
         ov = self.class_overrides.setdefault(self.current, {})
         exc = self.view_excluded.setdefault(self.current, set())
@@ -487,12 +504,14 @@ class ParticleEditor:
                 self.status.showMessage("Back to the model's own classification.")
             else:
                 ov[pid] = cls
-        # NOTE: a hand-assigned class no longer changes WHAT IS MEASURED (user
-        # rule, 2026-07-30, reversing the 2026-07-25 auto-include). Class and size
-        # are separate judgements: telling a slate-blue particle it is lamellar
-        # leaves it unmeasured, and the Measure tool (left-click / right-click)
-        # stays the only way to move a particle in or out of the statistics.
-        # _view_analysis freezes the gate's verdict for hand-classified particles.
+                self._include_on_classify(pid)
+        # A hand-assigned class now also MEASURES a particle the gate had left
+        # out (user rule, 2026-11-14, reversing the 2026-07-30 rule that kept
+        # class and size apart): "if I can tell it is janus I can see its
+        # diameter too". Having to press Measure first and then the class was a
+        # wasted click on every occluded particle. Only the first click that
+        # names a class does it; the "unsure" and "back to the model" clicks
+        # leave the measurement alone, and right-click still takes it out.
         self._rerender()
         self._refresh_results()
 

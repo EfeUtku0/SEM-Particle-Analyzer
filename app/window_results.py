@@ -1,8 +1,8 @@
 """What the RESULTS panel and the image preview draw.
 
 Everything the right-hand side shows for the current selection: the class
-filter chips, the size histogram and its size-range readout, the cumulative
-curve, the Solid / Liquid split, Pattern x Size, the stat tiles — plus the
+filter chips, the size histogram and its size-range readout, the Volume
+view, the Solid / Liquid split, Pattern x Size, the stat tiles — plus the
 overlay redraw for the micrograph itself, because the two always change
 together (ticking a view toggle or a chip has to repaint both).
 
@@ -261,11 +261,9 @@ class ResultsPanel:
             b.setToolTip(f"{n} {CLASS_LABELS[key].lower()} particles" if n else
                          f"no {CLASS_LABELS[key].lower()} particles here")
         self._chip_btns["patternsize"].setEnabled(bool(groups))
-        # Cumulative needs measured particles, not classes: it works on an ETD
-        # image or a single-class selection where Pattern × Size has nothing to
-        # show, so it is gated on the diameters instead.
-        self._chip_btns["cumulative"].setEnabled(
-            bool(getattr(self, "_res_all", np.array([])).size))
+        # Volume compares class shares, so like Pattern × Size it needs at
+        # least two classes in the selection
+        self._chip_btns["volume"].setEnabled(bool(groups))
         # Solid / Liquid needs BOTH states present (solid_split returns
         # nothing otherwise) — a stack of one colour is not a comparison
         self._chip_btns["solidsplit"].setEnabled(bool(self._res_split))
@@ -275,7 +273,7 @@ class ResultsPanel:
         # the active view vanished with the selection -> fall back to All
         rf = self.result_filter
         gone = ((rf == "patternsize" and not groups)
-                or (rf == "cumulative" and not self._chip_btns["cumulative"].isEnabled())
+                or (rf == "volume" and not groups)
                 or (rf == "solidsplit" and not self._res_split)
                 or (rf not in (None,) + self.OVERVIEW_TABS and rf not in groups))
         if gone:
@@ -286,58 +284,69 @@ class ResultsPanel:
 
     CHIP_GAP = 5
 
+    # Two rows, always in this order (user rule, 2026-11-14): the whole-
+    # selection views plus Janus, the shortest class, on top; the other four
+    # classes below. Five classes did not fit one row at the panel's usual
+    # width, so the short one moved up. When a row is still too wide the class
+    # chips go compact (tighter padding, smaller type); only if even that does
+    # not fit does the lower row break in two.
+    CHIP_TOP = 5                        # all, solidsplit, patternsize, volume, janus
+    CHIP_COMPACT_QSS = dict(pad="1px 5px", size=11)
+
+    def _chip_widths(self):
+        """Every chip's sizeHint in both styles, measured once (the labels never
+        change, and re-styling on every resize would re-polish them all).
+
+        sizeHint, not a width worked out from the font: the platform style
+        pads a push button past its label, and a chip given less than its
+        sizeHint draws its text over its neighbour (2026-11-14)."""
+        if getattr(self, "_chip_w", None) is None:
+            w = {}
+            for style in ("normal", "compact"):
+                self._chip_style = None
+                self._set_chip_style(style)
+                w[style] = [self._chip_btns[k].sizeHint().width()
+                            for k in self._chip_order]
+            self._chip_w = w
+        return self._chip_w
+
+    def _set_chip_style(self, style):
+        if getattr(self, "_chip_style", None) == style:
+            return
+        from ui_theme import _chip_qss
+        for k in self._chip_order:
+            if k in self._chip_cols:            # the class chips only
+                self._chip_btns[k].setStyleSheet(_chip_qss(self._chip_cols[k], **(
+                    self.CHIP_COMPACT_QSS if style == "compact" else {})))
+        self._chip_style = style
+
     def _layout_chips(self):
-        """Deal the chips into as few rows as their labels actually need.
-
-        Two rows if they fit, three if they don't (user rule, 2026-07-30). The
-        widths are measured, not assumed, because a chip that is one pixel too
-        narrow elides its label — which is what a fixed four-column grid did to
-        "Pattern × Size" the moment an eighth chip joined. Rows are balanced
-        (the split that keeps the widest row narrowest) and each chip is
-        stretched by its own natural width, so a row fills the panel evenly
-        instead of ending ragged.
-
-        An extra row makes the chip bar taller; the chart above the tiles is the
-        only thing that gives up the space, so nothing below it shifts.
-        """
+        """Deal the chips into their two rows (see CHIP_TOP)."""
         keys = self._chip_order
-        need = [self._chip_btns[k].sizeHint().width() for k in keys]
+        widths = self._chip_widths()
         avail = max(120, self.chip_bar.width() - 4)
+        top = list(range(self.CHIP_TOP))
+        cls = list(range(self.CHIP_TOP, len(keys)))
 
-        def split(n_rows):
-            """Balanced contiguous split into n_rows; None if a row can't fit."""
-            best = None
-            n = len(keys)
-            cuts = [(i,) for i in range(1, n)] if n_rows == 2 else \
-                   [(i, j) for i in range(1, n - 1) for j in range(i + 1, n)]
-            for cut in cuts:
-                bounds = (0,) + cut + (n,)
-                rows = [list(range(bounds[i], bounds[i + 1]))
-                        for i in range(n_rows)]
-                widths = [sum(need[i] for i in r) + self.CHIP_GAP * (len(r) - 1)
-                          for r in rows]
-                if max(widths) > avail:
-                    continue
-                if best is None or max(widths) < best[0]:
-                    best = (max(widths), rows)
-            return best[1] if best else None
+        def span(row, style):
+            return (sum(widths[style][i] for i in row)
+                    + self.CHIP_GAP * (len(row) - 1))
 
-        rows = split(2) or split(3)
-        if rows is None:
-            # Panel too narrow for a balanced 2- or 3-row deal: wrap greedily,
-            # filling each row before starting the next (never one chip per row).
-            rows, cur, used = [], [], 0
-            for i, wdt in enumerate(need):
-                add = wdt + (self.CHIP_GAP if cur else 0)
-                if cur and used + add > avail:
-                    rows.append(cur); cur, used = [], 0
-                    add = wdt
-                cur.append(i); used += add
-            if cur:
-                rows.append(cur)
-        if len(rows) == self._chip_rowcount and getattr(self, "_chip_shape", None) == rows:
+        fits = lambda st: span(top, st) <= avail and span(cls, st) <= avail
+        style = "normal" if fits("normal") else "compact"
+        if fits(style):
+            rows = [top, cls]
+        else:                            # narrower still: three rows, the views
+            # alone on top and the five classes split under them, in order
+            five = top[-1:] + cls
+            cut = (len(five) + 1) // 2
+            rows = [top[:-1], five[:cut], five[cut:]]
+        self._set_chip_style(style)
+        need = widths[style]
+        shape = (style, rows)
+        if getattr(self, "_chip_shape", None) == shape:
             return                           # nothing to rebuild
-        self._chip_shape = rows
+        self._chip_shape = shape
         self._chip_rowcount = len(rows)
         while self._chip_rows.count():       # tear the old rows down
             item = self._chip_rows.takeAt(0)
@@ -364,19 +373,19 @@ class ResultsPanel:
         if not self._ps_active:
             self._result_timer.start(10)
 
-    OVERVIEW_TABS = ("solidsplit", "patternsize", "cumulative")
+    OVERVIEW_TABS = ("solidsplit", "patternsize", "volume")
 
     def _apply_result_view(self, target):
         """Show the histogram+tiles, or one of the overview pages, per the chip."""
         ps = (self.result_filter == "patternsize")
-        cdf = (self.result_filter == "cumulative")
+        vol = (self.result_filter == "volume")
         spl = (self.result_filter == "solidsplit")
         # _ps_active means "an overview page is up" to the rest of the panel:
         # the histogram and its tiles must not be recomputed while hidden
-        self._ps_active = ps or cdf or spl
+        self._ps_active = ps or vol or spl
         self.normal_page.setVisible(not self._ps_active)
         self.ps_page.setVisible(ps)
-        self.cdf_page.setVisible(cdf)
+        self.vol_page.setVisible(vol)
         self.split_page.setVisible(spl)
         # Lay the card out NOW. A page that has just been un-hidden still has its
         # placeholder size until the next layout pass, and the figures are
@@ -384,45 +393,49 @@ class ResultsPanel:
         # a squat chart in a half-empty panel, corrected only by a later resize.
         card = self.normal_page.parentWidget()
         for lay in (card.layout() if card is not None else None,
-                    self.cdf_page.layout(), self.ps_page.layout(),
+                    self.vol_page.layout(), self.ps_page.layout(),
                     self.split_page.layout()):
             if lay is not None:
                 lay.activate()          # the page's own layout too, not just the card's
         if ps:
             self._refresh_ps()
-        elif cdf:
-            self._refresh_cdf()
+        elif vol:
+            self._refresh_vol()
         elif spl:
             self._refresh_split()
         else:
             self.stat_bar.setVisible(target is not None)
             self._update_stats()
 
-    # ---- Cumulative tab (CDF + D-values) ----
-    def _refresh_cdf(self):
-        """Tiles now, curve through the debounce (it is a matplotlib render)."""
-        t = getattr(self, "_result_target", None)
-        rows = chart_data.cumulative_tiles(t)
-        flat = [c for row in rows for c in row]
-        for (cap, val, sub, _accent), key in zip(
-                flat, ("d10", "d50", "d90", "span", "measured")):
-            self.cdf_tiles[key].set(cap=cap, val=val, sub=sub)
-        # 120 ms, not immediately: the page has only just been shown, so its
-        # final height arrives with the next layout pass — rendering before that
-        # produced a squat figure sitting in a half-empty panel (the figure is
-        # drawn AT the view's aspect ratio, so the aspect has to be the real one)
-        self._cdf_timer.start(120)
+    # ---- Volume tab (class shares by volume) ----
+    def _refresh_vol(self):
+        """Tiles now, figure through the debounce (it is a matplotlib render)."""
+        rows = chart_data.volume_tiles(getattr(self, "_result_target", None))
+        for (_cap, val, sub, accent), key in zip(
+                [c for row in rows for c in row], chart_data.VOLUME_TILE_KEYS):
+            self.vol_tiles[key].set(val=val, sub=sub, accent=accent)
+        # A figure left over from another selection is drawn over at once:
+        # waiting for the timer showed the old chart for a moment before the
+        # new one (user, 2026-11-14). _apply_result_view has already laid the
+        # page out, so the size is right; the timer below still redraws it if
+        # the next layout pass changes the height.
+        if getattr(self, "_result_target", None) is not self._vol_drawn_for:
+            self._render_vol()
+        self._vol_timer.start(120)
 
-    def _render_cdf(self):
+    _vol_drawn_for = None        # the target the Volume figure on show belongs to
+
+    def _render_vol(self):
         target = getattr(self, "_result_target", None)
-        if target is None or self.result_filter != "cumulative":
+        if target is None or self.result_filter != "volume":
             return
-        w = max(60, self.cdf_view.width())
-        h = max(120, self.cdf_view.height())
+        self._vol_drawn_for = target
+        w = max(60, self.vol_view.width())
+        h = max(120, self.vol_view.height())
         try:
-            self.cdf_view.set_image(charts.render_cumulative(target, aspect=w / h))
+            self.vol_view.set_image(charts.render_volume(target, aspect=w / h))
         except ValueError:
-            self.cdf_view.clear_img()          # nothing measured yet
+            self.vol_view.clear_img()          # nothing classified here
         except Exception:
             traceback.print_exc()
 
@@ -436,9 +449,13 @@ class ResultsPanel:
         for key, (_cap, val, sub, accent) in zip(keys, [c for r in rows[:2] for c in r]):
             self.split_tiles[key].set(val=val, sub=sub, accent=accent)
         self._update_split_readout()
-        # 120 ms like the other pages: the figure is drawn AT the view's aspect,
-        # which is only final after the layout pass that follows showing the page
+        # drawn at once when the figure on show is another selection's (the
+        # same fix as the Volume page), then once more after the layout pass
+        if getattr(self, "_result_target", None) is not self._split_drawn_for:
+            self._render_split()
         self._split_timer.start(120)
+
+    _split_drawn_for = None      # the target the Solid / Liquid figure belongs to
 
     def _update_split_readout(self):
         """The same readout as the All tab's: what share of the measured
@@ -462,6 +479,7 @@ class ResultsPanel:
         if self.result_filter != "solidsplit":
             return
         target = getattr(self, "_result_target", None)
+        self._split_drawn_for = target
         if target is None:
             self.split_view.clear_img(); return
         w = max(60, self.split_view.width())
@@ -712,10 +730,10 @@ class ResultsPanel:
         # Export what is ON SCREEN: _view_analysis applies the user's own class
         # paints and excludes. Exporting the raw analysis instead was why saved
         # images didn't match the colours in the app.
-        analyzed = [self._view_analysis(self.results[p], p)
-                    for p in sel if p in self.results]
-        if not analyzed and self.current in self.results:
-            analyzed = [self._view_analysis(self.results[self.current], self.current)]
+        keyed = [p for p in sel if p in self.results]
+        if not keyed and self.current in self.results:
+            keyed = [self.current]
+        analyzed = [self._view_analysis(self.results[p], p) for p in keyed]
         if not analyzed:
             QtWidgets.QMessageBox.information(self, "Info", "Analyze image(s) first.")
             return

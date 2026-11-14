@@ -16,7 +16,7 @@ import re
 
 from overlay_draw import render, pick_spread
 from chart_data import class_diams
-from charts import (render_report, render_cumulative, render_solid_split,
+from charts import (render_report, render_volume, render_solid_split,
                     render_pattern_size)
 
 # export type -> filename keyword
@@ -124,7 +124,7 @@ def export(analyses, out_dir, types, facet_thresh=None, chosen_map=None, k=5,
                   written once per selected image
     cls_filters : which CHARTS to write — "all" is the whole distribution, a class
                   key ("janus", …) that class alone, "patternsize" the Pattern ×
-                  Size composition chart, "cumulative" the CDF with its D-values,
+                  Size composition chart, "volume" the class shares by volume,
                   "solidsplit" the stacked solid/undercooled histogram.
                   One file each.
     title       : optional caption drawn above every chart, AND the name the
@@ -189,13 +189,13 @@ def export(analyses, out_dir, types, facet_thresh=None, chosen_map=None, k=5,
                 continue
             img = render_pattern_size(target, title=title)
             word = "pattern x size"
-        elif cf == "cumulative":
+        elif cf == "volume":
             try:
-                img = render_cumulative(target, aspect=6.8 / 6.0, title=title,
-                                        stats=True)
+                img = render_volume(target, aspect=6.8 / 6.0, title=title,
+                                    stats=True)
             except ValueError:
-                continue                     # nothing measured in this selection
-            word = "cumulative"
+                continue                     # nothing classified in this selection
+            word = "volume"
         elif cf == "solidsplit":
             try:
                 img = render_solid_split(target, aspect=6.8 / 6.0,

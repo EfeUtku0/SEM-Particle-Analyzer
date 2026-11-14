@@ -1,4 +1,4 @@
-"""Drawing the figures: histogram, cumulative curve, Solid / Liquid, Pattern x Size.
+"""Drawing the figures: histogram, Volume, Solid / Liquid, Pattern x Size.
 
 Every function here returns a PIL image and is used by BOTH the on-screen panel
 and the file export, which is what keeps the two identical. The numbers come
@@ -21,7 +21,10 @@ from chart_data import (BG, INK, MUT, PLOT, HIST_FILL, HIST_EDGE,
                         CLASS_RANGE_FILL, PANEL_AXIS_MAX, PANEL_BINS,
                         SPLIT_ORDER, SPLIT_COLORS, SPLIT_EDGES, SPLIT_LABELS,
                         _bin_edges, _tick_step, _quiet_corner,
-                        class_diams, stat_tiles, d_values, cumulative_tiles,
+                        class_diams, stat_tiles,
+                        volume_rows, volume_shares, volume_tiles,
+                        VOLUME_SEGMENTS, VOLUME_LABELS, VOLUME_COLORS,
+                        VOLUME_EDGES,
                         solid_split, split_tiles, range_sentence)
 
 # the app's own tile styling (ui_theme QSS #tile / #tilecap / #tileval /
@@ -365,114 +368,129 @@ def _figure_image(fig):
     return im
 
 
-def render_cumulative(target, aspect: float = 6.8 / 4.6, title=None,
-                      stats=False) -> Image.Image:
-    """The cumulative size distribution: % of particles at or below a diameter.
+def render_volume(target, aspect: float = 6.8 / 4.6, title=None,
+                  stats=False) -> Image.Image:
+    """The Volume view: what the selection is MADE of, next to what it counts.
 
-    One dark curve for everything measured, a thin coloured curve per class when
-    the selection holds more than one (that is where "are the janus ones bigger
-    than the undercooled ones?" gets answered at a glance), and D10/D50/D90
-    marked on the main curve. `stats=True` draws the D-value tiles underneath,
-    the way render_report does — used for the export, while the app shows those
-    numbers as native tiles instead.
+    Top, two 100% bars over the same particles: the class shares by number
+    (each particle once, the app's usual share) and by volume (each particle as
+    d³, see chart_data.volume_shares). Underneath, where on the size axis that
+    volume sits: the same bins as the other charts, each bar the share of the
+    TOTAL volume in that bin, stacked by class, so the bars sum to 100%.
+    `stats=True` draws the volume tiles underneath for the export, while the app
+    shows those numbers as native tiles instead.
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    from matplotlib.ticker import MultipleLocator
 
     plt.rcParams["font.family"] = matplotlib_family()
-    slab = matplotlib_family(ROBOTO, "Roboto Slab")
-    d_all = np.asarray(target.diam_array(whole_only=True), float)
-    d_all = np.sort(d_all[np.isfinite(d_all)])
-    if d_all.size == 0:
-        raise ValueError("nothing measured — no cumulative chart")
-    groups = class_diams(target)
+    vs = volume_shares(target)
+    if vs is None:
+        raise ValueError("nothing classified — no volume chart")
+    d, k = volume_rows(target)
+    v = d ** 3
+    present = [s for s in VOLUME_SEGMENTS
+               if vs["by_number"][s] > 0 or vs["by_volume"][s] > 0]
 
     W = 6.8
-    tiles = cumulative_tiles(target) if stats else []
-    lm, rm, top, bot = 0.92, 0.40, 0.26, 0.30
-    tile_h = (_tiles_height(len(tiles), W - lm - rm) + 0.12) if tiles else 0.0
+    tiles = volume_tiles(target) if stats else []
+    lm, rm, top, bot, axlab_h = 1.02, 0.40, 0.26, 0.30, 0.78
+    tile_h = (_tiles_height(len(tiles), W - 2 * rm) + 0.22) if tiles else 0.0
     title_h = 0.34 if title else 0.0
-    axlab_h = 0.78
-    # SAME height rule as render_solid_split (clamped both ways rather than
-    # solved from `aspect` directly): the two are exported side by side with the
-    # same `aspect` value, and solving straight from it here gave the plot area
-    # a fraction of the height the tile block ate into — Solid/Liquid came out
-    # visibly bigger than Cumulative for no reason a reader could see.
+    ncol = len(present) if len(present) <= 4 else 3
+    leg_h = 0.30 * -(-len(present) // ncol) + 0.10
+    bars_h, gap_h = 0.92, 0.26
+    # same height rule as render_solid_split, so switching tabs keeps the type
+    # the same size
     H = max(4.6, min(7.6, W / max(0.45, min(1.6, aspect)))) + tile_h + title_h
-    plot_h = max(1.4, H - top - bot - axlab_h - tile_h - title_h)
+    hist_h = max(1.2, H - top - bot - axlab_h - tile_h - title_h
+                 - bars_h - leg_h - gap_h)
 
     fig = plt.figure(figsize=(W, H), dpi=200)
     fig.patch.set_facecolor(BG)
     ax_x, ax_w = lm / W, (W - lm - rm) / W
     y = bot
-    tile_rect = [ax_x, y / H, ax_w, (tile_h - 0.12) / H] if tiles else None
+    tile_rect = [rm / W, y / H, (W - 2 * rm) / W, (tile_h - 0.22) / H] if tiles else None
     y += tile_h + axlab_h
-    ax = fig.add_axes([ax_x, y / H, ax_w, plot_h / H])
-    ax.set_facecolor(PLOT)
+    ax = fig.add_axes([ax_x, y / H, ax_w, hist_h / H])
+    y += hist_h + gap_h
+    leg_y = y
+    y += leg_h
+    bx = fig.add_axes([ax_x, y / H, ax_w, bars_h / H])
+    bars_top = y + bars_h
 
-    def curve(d):
-        """Step-free empirical CDF: sorted diameters against 0…100%."""
-        d = np.sort(np.asarray(d, float))
-        return d, np.arange(1, d.size + 1) / d.size * 100.0
-
-    drawn = []
-    if len(groups) > 1:
-        for k in CLASS_ORDER:
-            arr = groups.get(k)
-            if arr is None or arr.size < 3:
+    # ---- the two 100% bars ----
+    for row, key, lab in ((1, "by_number", "Number"), (0, "by_volume", "Volume")):
+        left = 0.0
+        for s in present:
+            w = 100.0 * vs[key][s]
+            if w <= 0:
                 continue
-            gx, gy = curve(arr)
-            ax.plot(gx, gy, color=CLASS_COLORS[k], lw=1.4, alpha=0.75,
-                    solid_capstyle="round", zorder=2, label=CLASS_LABELS[k])
-            drawn.append(k)
-    x, yv = curve(d_all)
-    ax.plot(x, yv, color=INK, lw=2.4, solid_capstyle="round", zorder=4)
-
-    dv = d_values(d_all)
-    for key, pct in (("d10", 10), ("d50", 50), ("d90", 90)):
-        val = dv[key]
-        ax.plot([x[0], val], [pct, pct], color=MUT, lw=1.0, ls=(0, (3, 3)),
-                zorder=3)
-        ax.plot([val, val], [0, pct], color=MUT, lw=1.0, ls=(0, (3, 3)), zorder=3)
-        ax.plot([val], [pct], "o", ms=5.5, color=BG, mec=INK, mew=1.8, zorder=5)
-        ax.annotate(f"{key.upper()}  {val:.0f}", (val, pct),
-                    textcoords="offset points", xytext=(7, -12),
-                    fontsize=11.5, family=slab, weight="bold", color=INK,
-                    zorder=6)
-
-    ax.set_xlim(max(0.0, x[0] - (x[-1] - x[0]) * 0.03), x[-1] + (x[-1] - x[0]) * 0.03)
-    ax.set_ylim(0, 102)
-    ax.set_yticks([0, 25, 50, 75, 100])
-    ax.set_yticklabels(["0", "25", "50", "75", "100%"])
-    ax.grid(True, axis="y", color="#dfe4ea", lw=0.9)
-    ax.set_axisbelow(True)
-    ax.tick_params(colors="#4a5560", labelsize=13, length=3)
-    for lab in ax.get_xticklabels() + ax.get_yticklabels():
+            bx.barh(row, w, left=left, height=0.66, color=VOLUME_COLORS[s],
+                    edgecolor=VOLUME_EDGES[s], linewidth=0.9, zorder=2)
+            if w >= 7:
+                bx.text(left + w / 2, row, f"{w:.0f}%", ha="center", va="center",
+                        fontsize=11.5, weight="bold", color=INK, zorder=3)
+            left += w
+    bx.set_xlim(0, 100)
+    bx.set_ylim(-0.5, 1.5)
+    bx.set_yticks([1, 0])
+    bx.set_yticklabels(["Number", "Volume"])
+    bx.set_xticks([])
+    bx.set_facecolor(PLOT)
+    for sp in bx.spines.values():
+        sp.set_visible(False)
+    bx.tick_params(axis="y", length=0, colors=INK, labelsize=13, pad=8)
+    for lab in bx.get_yticklabels():
         lab.set_fontweight("semibold")
-    xl = ax.get_xticklabels()
-    if xl:
-        xl[-1].set_horizontalalignment("right")
+
+    handles = [mpatches.Patch(facecolor=VOLUME_COLORS[s], edgecolor=VOLUME_EDGES[s],
+                              label=VOLUME_LABELS[s]) for s in present]
+    leg = fig.legend(handles=handles, loc="center",
+                     bbox_to_anchor=(ax_x + ax_w / 2, (leg_y + leg_h / 2) / H),
+                     ncol=ncol, frameon=False, fontsize=11, handlelength=1.2,
+                     columnspacing=1.4, labelspacing=0.3, borderpad=0.0)
+    for t in leg.get_texts():
+        t.set_color("#576270")
+        t.set_fontweight("semibold")
+
+    # ---- where the volume sits on the size axis ----
+    edges, binw = _bin_edges(d)
+    centres = edges[:-1] + binw / 2
+    bottom = np.zeros(len(centres))
+    vtot = v.sum()
+    for s in present:
+        sel = k == s
+        h = np.histogram(d[sel], bins=edges, weights=v[sel])[0] / vtot * 100.0
+        ax.bar(centres, h, width=binw, bottom=bottom, color=VOLUME_COLORS[s],
+               edgecolor=VOLUME_EDGES[s], linewidth=0.9, align="center", zorder=2)
+        bottom += h
+    ax.set_facecolor(PLOT)
+    ax.set_xlim(edges[0], edges[-1])
+    ax.set_ylim(0, max(1.0, bottom.max()) * 1.08)
+    ax.xaxis.set_major_locator(MultipleLocator(_tick_step(edges[-1] - edges[0], binw)))
+    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(
+        lambda val, _pos: f"{val:.0f}%"))
+    ax.set_ylabel("Volume", color=INK, fontsize=15, weight="semibold")
+    ax.set_xlabel("Diameter (nm)", color=INK, fontsize=15, weight="semibold")
+    for sp in ax.spines.values():
+        sp.set_color("#c7cfd8")
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    for side in ("left", "bottom"):
-        ax.spines[side].set_color("#c7cfd8")
-    ax.set_xlabel("Diameter (nm)", color=INK, fontsize=15, weight="semibold",
-                  labelpad=6)
-    ax.set_ylabel("Cumulative", color=INK, fontsize=14, weight="semibold",
-                  labelpad=6)
-    if drawn:
-        # bottom-right is the one corner an S-shaped CDF always leaves empty
-        leg = ax.legend(loc="lower right", frameon=False, fontsize=11,
-                        handlelength=1.4, labelspacing=0.25, borderpad=0.2)
-        for t in leg.get_texts():
-            t.set_color("#576270")
-            t.set_fontweight("semibold")
+    ax.tick_params(colors="#4a5560", labelsize=13)
+    for lab in ax.get_xticklabels() + ax.get_yticklabels():
+        lab.set_fontweight("semibold")
+    xlabs = ax.get_xticklabels()
+    if xlabs:
+        xlabs[-1].set_horizontalalignment("right")
 
-    if tiles:
+    if tile_rect is not None:
         _draw_tiles(fig, tile_rect, tiles)
     if title:
-        _draw_title(fig, title, H, top, (y + plot_h) / H)
+        _draw_title(fig, title, H, top, bars_top / H)
     return _figure_image(fig)
 
 

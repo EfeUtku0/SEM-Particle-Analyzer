@@ -18,7 +18,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 import training_store
 
-from chart_data import CLASS_ORDER, CLASS_LABELS, CLASS_COLORS
+from chart_data import (CLASS_ORDER, CLASS_LABELS, CLASS_COLORS, STAT_LABELS,
+                        VOLUME_TILE_KEYS)
 from ui_theme import _sep, _chip_qss, set_ui_size, ui_size
 from widget_image_view import ImageView, ScaledImage
 from widget_tiles import CheckMenu, Tile, AspectCard
@@ -129,6 +130,12 @@ class WindowLayout:
         self._train_undo = []         # [(path, pid, previous or None)]
         self._train_worker = None
 
+    def _sync_ex_cls_title(self, *_):
+        """'Classes' in the Save menu, or 'Classes · 2' when two are ticked
+        inside it, so a ticked class chart is never hidden from view."""
+        n = sum(self.ex_cls[k].isChecked() for k in CLASS_ORDER if k in self.ex_cls)
+        self._ex_cls_menu.setTitle(f"Classes · {n}" if n else "Classes")
+
     def _build_toolbar(self):
         """The top bar: Analyze, the view toggles, Save, Training."""
         # ---- top toolbar (live preview controls) ----
@@ -138,7 +145,7 @@ class WindowLayout:
         # RESULTS panel now filters afterwards, so the choice was just friction.)
         self.analyze_btn = QtWidgets.QPushButton("🔬  Analyze")
         self.analyze_btn.setObjectName("primary")
-        self.analyze_btn.setMinimumHeight(38)
+        self.analyze_btn.setMinimumHeight(40)   # the height of Guide / Save
         self.analyze_btn.setToolTip("Measure the selected image(s): size, "
                                     "solid / undercooled and patterns")
         self.analyze_btn.clicked.connect(self.analyze_selected)
@@ -205,20 +212,28 @@ class WindowLayout:
             return a
 
         _sect("SEM IMAGE")
-        self.ex_line = _exp("Particle Size Measurement", True)
+        self.ex_line = _exp("Particle Size Measurement")
         self.ex_under = _exp("Solid / Undercooled")
         self.ex_pattern = _exp("Patterns")
         self._save_menu.addSeparator()
         # Ticking a distribution IS what asks for its chart — with several images
         # selected each one is a single pooled chart over all of them.
         _sect("CHARTS")
+        # same order as the RESULTS chips; the one-class charts are rarely
+        # wanted (user, 2026-11-14), so they sit in a submenu that opens on
+        # hover, its title counting how many are ticked inside it
         self.ex_cls = {}
         self.ex_cls["all"] = _exp("All", True)
-        for _k in CLASS_ORDER:
-            self.ex_cls[_k] = _exp(CLASS_LABELS[_k])
-        self.ex_cls["patternsize"] = _exp("Pattern × Size")
-        self.ex_cls["cumulative"] = _exp("Cumulative")
         self.ex_cls["solidsplit"] = _exp("Solid / Liquid")
+        self.ex_cls["patternsize"] = _exp("Pattern × Size")
+        self.ex_cls["volume"] = _exp("Volume")
+        self._ex_cls_menu = CheckMenu("Classes", self._save_menu)
+        for _k in CLASS_ORDER:
+            a = self._ex_cls_menu.addAction(CLASS_LABELS[_k])
+            a.setCheckable(True)      # no colour swatch: it takes the tick's place
+            a.toggled.connect(self._sync_ex_cls_title)
+            self.ex_cls[_k] = a
+        self._save_menu.addMenu(self._ex_cls_menu)
         self._save_menu.addSeparator()
         _sect("CHART TITLE  ·  FILE NAME")
         self.ex_title = QtWidgets.QLineEdit()
@@ -303,7 +318,8 @@ class WindowLayout:
         # both margins tied to the window's actual spare width, so the row sits
         # visually between its two neighbours and neither side balloons.
         tb = QtWidgets.QHBoxLayout()
-        tb.setSpacing(16); tb.setContentsMargins(2, 4, 2, 4)
+        # no side margin: Analyze and Save line up with the column edges below
+        tb.setSpacing(16); tb.setContentsMargins(0, 4, 0, 4)
         tb.addWidget(self.analyze_btn)
         tb.addStretch(1)
         tb.addWidget(view_w)
@@ -366,12 +382,10 @@ class WindowLayout:
                            "moved or changed.")
         newf_btn = QtWidgets.QPushButton("📁  Folder"); newf_btn.clicked.connect(self._new_folder)
         newf_btn.setToolTip("New folder — with rows selected, it groups them inside.")
-        sort_btn = QtWidgets.QPushButton("✨  Sort"); sort_btn.clicked.connect(self._smart_sort)
-        sort_btn.setToolTip("Smart sort — read the file names and file every image "
-                            "under its sample number, its region (Alt / Karışık / "
-                            "Üst) or its pattern. Shows the plan first.")
+        # (a third button, Sort, ran smartsort over the file names; removed on
+        # the user's word, 2026-11-14: never used. _smart_sort is still there.)
         btn_row = QtWidgets.QHBoxLayout(); btn_row.setSpacing(6)
-        for b in (imp_btn, newf_btn, sort_btn):
+        for b in (imp_btn, newf_btn):
             b.setObjectName("sidebtn")
             b.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                             QtWidgets.QSizePolicy.Fixed)
@@ -399,7 +413,9 @@ class WindowLayout:
         self.list_stack = QtWidgets.QStackedWidget()
         self.list_stack.addWidget(self.tree)
         self.list_stack.addWidget(self.results_list)
-        left = QtWidgets.QVBoxLayout(); left.setSpacing(7); left.setContentsMargins(0, 0, 0, 0)
+        # 8 like the middle and right columns, so the search box starts on the
+        # same line as the image and RESULTS cards (it sat 1 px higher at 7)
+        left = QtWidgets.QVBoxLayout(); left.setSpacing(8); left.setContentsMargins(0, 0, 0, 0)
         left.addWidget(hdr("IMAGES"))
         left.addWidget(self.search)
         left.addWidget(self.list_stack, 1)
@@ -540,14 +556,18 @@ class WindowLayout:
         #                             keystroke made the readout stutter)
         self._chip_btns = {}
         # All + the five classes narrow the histogram to one class; "Pattern ×
-        # Size" and "Cumulative" are overview tabs that swap the whole panel.
+        # Size" and "Volume" are overview tabs that swap the whole panel.
         # Solid / Liquid sits directly beside All: it is the other whole-selection
         # view of the same distribution, not a per-class filter like the six that
         # follow it.
-        chips = ([("all", "All", None), ("solidsplit", "Solid / Liquid", None)]
-                 + [(k, CLASS_LABELS[k], CLASS_COLORS[k]) for k in CLASS_ORDER]
-                 + [("patternsize", "Pattern × Size", None),
-                    ("cumulative", "Cumulative", None)])
+        # first row: the whole-selection views and Janus; second row: the
+        # other four classes (user rule, 2026-11-14; see _layout_chips)
+        _row2 = [k for k in CLASS_ORDER if k != "janus"]
+        chips = ([("all", "All", None), ("solidsplit", "Solid / Liquid", None),
+                  ("patternsize", "Pattern × Size", None), ("volume", "Volume", None),
+                  ("janus", CLASS_LABELS["janus"], CLASS_COLORS["janus"])]
+                 + [(k, CLASS_LABELS[k], CLASS_COLORS[k]) for k in _row2])
+        self._chip_cols = {k: c for k, _l, c in chips if c is not None}
         for key, lab, col in chips:
             b = QtWidgets.QPushButton(lab)
             b.setCheckable(True)
@@ -558,6 +578,7 @@ class WindowLayout:
             if col is not None:
                 pm = QtGui.QPixmap(9, 9); pm.fill(QtGui.QColor(col))
                 b.setIcon(QtGui.QIcon(pm))
+                b.setIconSize(QtCore.QSize(9, 9))   # no 16 px slot for a 9 px swatch
             b.clicked.connect(lambda _=False, k=key: self._set_result_filter(k))
             self._chip_btns[key] = b
         self._chip_btns["all"].setChecked(True)
@@ -667,35 +688,34 @@ class WindowLayout:
         self.ps_page.setStyleSheet("background:transparent;")
         self.ps_page.setVisible(False)
 
-        # ---- Cumulative page: the size distribution read the other way round —
-        # "what share of the particles is at or below this diameter" — with the
-        # D-values that go with it. Same shape as the normal page (chart on top,
-        # tiles pinned underneath), so switching tabs doesn't move anything.
-        self.cdf_view = ScaledImage("Analyze an image to see the distribution",
-                                    on_resize=lambda: self._cdf_timer.start(120),
+        # ---- Volume page: the class shares weighted by material instead of
+        # by particle count (see chart_data.volume_shares) — the two 100% bars
+        # and where the volume sits on the size axis, with each class's volume
+        # share and its ± underneath. Same shape as the normal page (chart on
+        # top, tiles pinned underneath), so switching tabs doesn't move anything.
+        self.vol_view = ScaledImage("Analyze an image to see what it is made of",
+                                    on_resize=lambda: self._vol_timer.start(120),
                                     radius=8)
-        self.cdf_view.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
-        self.cdf_view.setMinimumHeight(150)
-        self.cdf_view.setStyleSheet("background:transparent;color:#9aa4ae;")
-        self._cdf_timer = QtCore.QTimer(self); self._cdf_timer.setSingleShot(True)
-        self._cdf_timer.timeout.connect(self._render_cdf)
-        self.cdf_tiles = {}
-        cdf_grid = QtWidgets.QGridLayout()
-        cdf_grid.setHorizontalSpacing(6); cdf_grid.setVerticalSpacing(6)
-        cdf_grid.setContentsMargins(0, 0, 0, 0)
-        for i, key in enumerate(("d10", "d50", "d90")):
-            t = Tile(key.upper(), "—"); self.cdf_tiles[key] = t
-            cdf_grid.addWidget(t, 0, i)
-        for i, key in enumerate(("span", "measured")):
-            t = Tile(key.upper(), "—"); self.cdf_tiles[key] = t
-            cdf_grid.addWidget(t, 1, i, 1, 2 if i else 1)
-        cdf_body = QtWidgets.QVBoxLayout()
-        cdf_body.setContentsMargins(0, 0, 0, 0); cdf_body.setSpacing(8)
-        cdf_body.addWidget(self.cdf_view, 1)
-        cdf_body.addLayout(cdf_grid)
-        self.cdf_page = QtWidgets.QWidget(); self.cdf_page.setLayout(cdf_body)
-        self.cdf_page.setStyleSheet("background:transparent;")
-        self.cdf_page.setVisible(False)
+        self.vol_view.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop)
+        self.vol_view.setMinimumHeight(150)
+        self.vol_view.setStyleSheet("background:transparent;color:#9aa4ae;")
+        self._vol_timer = QtCore.QTimer(self); self._vol_timer.setSingleShot(True)
+        self._vol_timer.timeout.connect(self._render_vol)
+        self.vol_tiles = {}
+        vol_grid = QtWidgets.QGridLayout()
+        vol_grid.setHorizontalSpacing(6); vol_grid.setVerticalSpacing(6)
+        vol_grid.setContentsMargins(0, 0, 0, 0)
+        for i, key in enumerate(VOLUME_TILE_KEYS):
+            t = Tile(STAT_LABELS[key].upper(), "—")
+            self.vol_tiles[key] = t
+            vol_grid.addWidget(t, i // 3, i % 3)
+        vol_body = QtWidgets.QVBoxLayout()
+        vol_body.setContentsMargins(0, 0, 0, 0); vol_body.setSpacing(8)
+        vol_body.addWidget(self.vol_view, 1)
+        vol_body.addLayout(vol_grid)
+        self.vol_page = QtWidgets.QWidget(); self.vol_page.setLayout(vol_body)
+        self.vol_page.setStyleSheet("background:transparent;")
+        self.vol_page.setVisible(False)
 
         # ---- Solid / Liquid page: the same size axis as the All chart,
         # but every bar split into the two states — crystalline at the bottom,
@@ -773,7 +793,7 @@ class WindowLayout:
         res_lay.addWidget(self.chip_bar)
         res_lay.addWidget(self.normal_page, 1)
         res_lay.addWidget(self.ps_page, 1)
-        res_lay.addWidget(self.cdf_page, 1)
+        res_lay.addWidget(self.vol_page, 1)
         res_lay.addWidget(self.split_page, 1)
 
         right = QtWidgets.QVBoxLayout(); right.setSpacing(8); right.setContentsMargins(0, 0, 0, 0)
