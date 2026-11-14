@@ -7,7 +7,7 @@ with no logic of its own, and giving each a module would only add imports.
 """
 from __future__ import annotations
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from chart_data import CLASS_COLORS, CLASS_LABELS
 
@@ -23,6 +23,96 @@ class CheckMenu(QtWidgets.QMenu):
             e.accept()
             return
         super().mouseReleaseEvent(e)
+
+
+class FitButton(QtWidgets.QPushButton):
+    """A button whose label breaks onto a second line when one line won't fit.
+
+    The particle tools sit in a card that gets NARROW and TALL together (the
+    photo above it keeps its shape, so a narrower column leaves more height
+    under it). A one-line label was simply cut off there — "Change to
+    Undercool" — with half the button's height standing empty. Given the label
+    in two parts, this shows "Change to Janus  (1)" for as long as that fits,
+    exactly as it always looked, and only when it no longer does
+
+        Change to
+        Janus  (1)
+
+    Each button decides for itself, at the exact pixel where its one line stops
+    fitting. The column can never get narrower than the two-line form needs
+    (minimumSizeHint), so nothing is ever cut.
+    """
+
+    SWATCH = 11        # the class-colour square, px
+    GAP_ONE = 4        # Qt's own icon-to-text gap, all there is on one line
+    GAP_TWO = 9        # on two lines the square stands clear of both of them
+    FRAME = 22         # the stylesheet's 10 px padding each side + 1 px border
+
+    def __init__(self, lead, tail):
+        super().__init__()
+        self._colour = None
+        self._one = f"{lead} {tail}" if lead else tail
+        self._two = f"{lead}\n{tail}" if lead else tail
+        self._wrapped = False
+        self.setText(self._one)
+
+    def set_swatch(self, colour):
+        self._colour = colour
+        self._show(self._wrapped, force=True)
+
+    def set_glyph(self, icon, size):
+        """A line icon (icons.icon) in place of the colour square, for the
+        tools that are not a class. `size` includes the icon's own gap."""
+        self._glyph = size
+        self.setIconSize(size)
+        self.setIcon(icon)
+
+    def _show(self, wrapped, force=False):
+        if wrapped == self._wrapped and not force:
+            return
+        self._wrapped = wrapped
+        self.setText(self._two if wrapped else self._one)
+        if self._colour is not None:
+            # the extra gap is transparent pixmap to the right of the square —
+            # QPushButton has no setting for the space between icon and text
+            pad = (self.GAP_TWO - self.GAP_ONE) if wrapped else 0
+            pm = QtGui.QPixmap(self.SWATCH + pad, self.SWATCH)
+            pm.fill(QtCore.Qt.transparent)
+            p = QtGui.QPainter(pm)
+            p.fillRect(0, 0, self.SWATCH, self.SWATCH, QtGui.QColor(self._colour))
+            p.end()
+            self.setIconSize(pm.size())
+            self.setIcon(QtGui.QIcon(pm))
+
+    def _need(self, wrapped):
+        """Width the button must have to show that form of its label whole."""
+        self.ensurePolished()
+        fm = self.fontMetrics()
+        text = max(fm.horizontalAdvance(line)
+                   for line in (self._two if wrapped else self._one).split("\n"))
+        icon = 0
+        if self._colour is not None:
+            icon = self.SWATCH + (self.GAP_TWO if wrapped else self.GAP_ONE)
+        elif getattr(self, "_glyph", None) is not None:
+            icon = self._glyph.width() + self.GAP_ONE
+        return text + icon + self.FRAME + 2          # 2 px of slack
+
+    def one_line_width(self):
+        return self._need(False)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._show(self._two != self._one and self._need(False) > self.width())
+
+    def sizeHint(self):
+        self.ensurePolished()
+        return QtCore.QSize(self._need(False), self.fontMetrics().height() + 14)
+
+    def minimumSizeHint(self):
+        self.ensurePolished()
+        lines = self._two.count("\n") + 1
+        return QtCore.QSize(self._need(True),
+                            lines * self.fontMetrics().height() + 12)
 
 
 class Tile(QtWidgets.QFrame):

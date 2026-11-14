@@ -17,7 +17,7 @@ try:
 except Exception:
     pass
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _bootstrap  # noqa: F401  (sets model paths / SSL before heavy imports)
@@ -70,6 +70,42 @@ def _prewarm_in_background():
     threading.Thread(target=work, name="prewarm", daemon=True).start()
 
 
+class _UpdateBridge(QtCore.QObject):
+    """Carries the update check's answer from its thread to the GUI thread."""
+    found = QtCore.Signal(str, str)        # version, release page
+
+
+class _BodySplit(QtWidgets.QSplitter):
+    """IMAGES | everything else, with the IMAGES width held at `want` pixels.
+
+    QSplitter.setSizes is proportional — it rescales whatever it is given to
+    the splitter's width at that moment, and before the window is shown that
+    width is not the real one. So the wanted width is kept as a number and
+    re-asserted on every resize; a drag by the user simply changes the number.
+    """
+
+    def __init__(self, want):
+        super().__init__(QtCore.Qt.Horizontal)
+        self.want = int(want)
+        self.splitterMoved.connect(self._dragged)
+
+    def _dragged(self, *_):
+        self.want = self.sizes()[0]
+
+    def set_left(self, w):
+        self.want = int(w)
+        self._assert()
+
+    def _assert(self):
+        room = self.width() - self.handleWidth() - self.want
+        if self.count() == 2 and room > 0 and self.sizes()[0] != self.want:
+            self.setSizes([self.want, room])
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._assert()
+
+
 class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, search
                  ResultsPanel,      # the RESULTS panel and the preview redraw
                  ParticleEditor,    # click tools: view-only per-particle fixes
@@ -82,7 +118,7 @@ class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, sear
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SEM Particle Analyzer")
-        self.setMinimumSize(1380, 640)   # keeps the View bar (incl. 🎓 Training) from clipping
+        self.setMinimumSize(1380, 640)   # keeps the View bar (incl. Training) from clipping
         self.setAcceptDrops(True)
 
         self._init_state()
@@ -93,13 +129,26 @@ class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, sear
         self._wire_shortcuts()
 
 
-        leftw.setFixedWidth(230)
-
-        # 3-column layout; middle (image) flexes so the window fits any screen
-        body = QtWidgets.QHBoxLayout(); body.setSpacing(18)
-        body.addWidget(leftw)
-        body.addWidget(midw, 1)
-        body.addWidget(self.right_stack)
+        # 3-column layout; middle (image) flexes so the window fits any screen.
+        # The edge between IMAGES and the photo can be dragged: the names in
+        # that panel are long, and how much of the photo's width they are worth
+        # is the user's call. The handle is exactly as wide as the gap between
+        # the other two columns, so the three cards keep their even spacing.
+        GAP = 18
+        rest = QtWidgets.QWidget()
+        rest_lay = QtWidgets.QHBoxLayout(rest); rest_lay.setSpacing(GAP)
+        rest_lay.setContentsMargins(0, 0, 0, 0)
+        rest_lay.addWidget(midw, 1)
+        rest_lay.addWidget(self.right_stack)
+        self.body_split = _BodySplit(self.LEFT_W)
+        self.body_split.setHandleWidth(GAP)
+        self.body_split.setChildrenCollapsible(False)
+        self.body_split.addWidget(leftw)
+        self.body_split.addWidget(rest)
+        self.body_split.setStretchFactor(0, 0)   # a wider window widens the photo,
+        self.body_split.setStretchFactor(1, 1)   # never the list
+        body = QtWidgets.QHBoxLayout(); body.setContentsMargins(0, 0, 0, 0)
+        body.addWidget(self.body_split)
 
         root = QtWidgets.QVBoxLayout(); root.setContentsMargins(16, 12, 16, 10); root.setSpacing(12)
         root.addWidget(tbw); root.addLayout(body, 1)
@@ -169,6 +218,28 @@ class MainWindow(LibraryPanel,      # the IMAGES panel: import, file, sort, sear
         # …and only then load what the first click will need: racing the
         # restore for the interpreter just made both slower
         _prewarm_in_background()
+        # last, and late: one small request that must not compete with the
+        # restore or the prewarm for the first seconds
+        QtCore.QTimer.singleShot(3000, self._start_update_check)
+
+    def _start_update_check(self):
+        import update_check
+        self._update_bridge = _UpdateBridge(self)
+        self._update_bridge.found.connect(self._show_update)
+        update_check.check_in_background(self._update_bridge.found.emit)
+
+    def _show_update(self, version, url):
+        self.update_btn.setText(f"Update · v{version}")
+        from icons import set_icon
+        set_icon(self.update_btn, "update", "#1f5c38", size=15, gap=5)
+        self.update_btn.setToolTip("Opens the download page in your browser")
+        self._update_url = url
+        self.update_btn.show()
+
+    def _open_update_page(self):
+        url = getattr(self, "_update_url", None)
+        if url:
+            QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
 
     def _lock_stat_height(self):
         """Freeze the tile block to its tallest (3-row 'all') layout so the chart
@@ -269,7 +340,9 @@ def main():
         f.setPixelSize(13)
     app.setFont(f)
     check = _checkmark_png().replace("\\", "/")
-    app.setStyleSheet(STYLE.replace("CHECKMARK", check))
+    check_off = _checkmark_png(off=True).replace("\\", "/")
+    app.setStyleSheet(STYLE.replace("CHECKMARK_OFF", check_off)
+                           .replace("CHECKMARK", check))
     w = MainWindow()
     # open at a size that fits the user's screen, centred
     avail = app.primaryScreen().availableGeometry()

@@ -55,11 +55,15 @@ class SaturationWindow(QtWidgets.QDialog):
         self.prog = QtWidgets.QProgressBar()
         self.prog.setVisible(False)
 
-        self.btn_measure = QtWidgets.QPushButton("↻   Measure now")
+        from icons import set_icon
+        self.btn_measure = QtWidgets.QPushButton("Measure now")
+        set_icon(self.btn_measure, "refresh")
         self.btn_measure.clicked.connect(self._measure)
-        self.btn_png = QtWidgets.QPushButton("⤓   Save chart…")
+        self.btn_png = QtWidgets.QPushButton("Save chart…")
+        set_icon(self.btn_png, "save")
         self.btn_png.clicked.connect(self._save_png)
-        self.btn_csv = QtWidgets.QPushButton("⤓   Save data…")
+        self.btn_csv = QtWidgets.QPushButton("Save data…")
+        set_icon(self.btn_csv, "save")
         self.btn_csv.clicked.connect(self._save_csv)
         btn_close = QtWidgets.QPushButton("Close")
         btn_close.clicked.connect(self.close)

@@ -130,8 +130,10 @@ class ReviewDialog(QtWidgets.QDialog):
         self.lbl_sel = QtWidgets.QLabel()
         self.lbl_sel.setStyleSheet("color:#2b6fff;font-size:12px;font-weight:700;"
                                    "background:transparent;")
-        self.btn_accept = QtWidgets.QPushButton("✓  Accept page")
+        self.btn_accept = QtWidgets.QPushButton("Accept page")
         self.btn_accept.setObjectName("primary")
+        from icons import set_primary_icon
+        set_primary_icon(self.btn_accept, "check")
         self.btn_accept.setMinimumHeight(38)
         self.btn_done = QtWidgets.QPushButton("Finish")
         self.btn_prev.clicked.connect(lambda: self._go(-1))

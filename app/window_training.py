@@ -382,8 +382,10 @@ class TrainingMode:
         gold = bool(self.current) and golden_store.is_golden(self.current)
         self.tr_confirm_btn.setEnabled(not gold)
         self.tr_confirm_btn.setText(
-            "🔒   Golden photo — never trained on" if gold
-            else "✓   Add photo to training set")
+            "Golden photo — never trained on" if gold
+            else "Add photo to training set")
+        from icons import set_primary_icon
+        set_primary_icon(self.tr_confirm_btn, "lock" if gold else "check")
         self.tr_confirm_btn.setToolTip(
             "This photo measures the model's accuracy, which only works while "
             "the model has never seen it. Move it out of the golden folder to "
@@ -731,9 +733,9 @@ class TrainingMode:
         # guessing whether the click registered. AFTER _train_state_line, which
         # also writes this button's label now (the golden lock) and would
         # otherwise wipe the flash the moment it was set.
-        self.tr_confirm_btn.setText("✓   Added to training set")
+        self.tr_confirm_btn.setText("Added to training set")
         QtCore.QTimer.singleShot(1900, lambda: self.tr_confirm_btn.setText(
-            "✓   Add photo to training set"))
+            "Add photo to training set"))
 
     def _train_refresh_confirmed(self):
         """Update just the Train button's ready-state / photo count (the confirmed
@@ -744,8 +746,8 @@ class TrainingMode:
         # the button sits in a narrow row now, so the photo count that used to be
         # in the label lives in the tooltip until it is the thing standing in the
         # way (n < need), when it goes back on the button
-        self.tr_train_btn.setText("🧠  Train model" if n >= need
-                                  else f"🧠  Train  ({n}/{need})")
+        self.tr_train_btn.setText("Train model" if n >= need
+                                  else f"Train  ({n}/{need})")
         self.tr_train_btn.setToolTip(
             f"Retrain the pattern model on your {n} confirmed photos"
             if n >= need else
@@ -759,7 +761,7 @@ class TrainingMode:
         except Exception:
             ng, by = 0, {}
         self.tr_report_btn.setText(
-            f"📋  Model raporu  ({ng} golden)" if ng else "📋  Model raporu")
+            f"Model raporu  ({ng} golden)" if ng else "Model raporu")
         if ng:
             from dialog_train_report import _INSTRUMENT
             mix = ", ".join(f"{v} × {_INSTRUMENT.get(k, k)}"

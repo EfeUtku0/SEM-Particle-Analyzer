@@ -21,6 +21,7 @@ import scale_overrides
 import training_store
 from analyze import DEFAULT_FACET_THRESH
 from background_workers import CallWorker, Worker
+from icons import set_primary_icon
 
 
 class AnalysisFlow:
@@ -250,7 +251,8 @@ class AnalysisFlow:
     def _next(self):
         if not self.queue:
             self.analyze_btn.setEnabled(True)
-            self.analyze_btn.setText("🔬  Analyze")
+            self.analyze_btn.setText("Analyze")
+            set_primary_icon(self.analyze_btn, "analyze")
             self.busy.setVisible(False)
             self.status.showMessage("Analysis complete.")
             # A finished batch is the moment fresh, labelled particles exist, so
@@ -275,7 +277,8 @@ class AnalysisFlow:
             return
         path = self.queue.pop(0)
         self.analyze_btn.setEnabled(False)
-        self.analyze_btn.setText("⏳  Analyzing…")
+        self.analyze_btn.setText("Analyzing…")
+        set_primary_icon(self.analyze_btn, "busy")
         # The AI model loads on the very first analysis of a session, and on a new
         # computer that first load compiles GPU kernels — it can take a minute or
         # two while nothing else appears to happen. Say so LOUDLY (a moving bar +

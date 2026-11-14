@@ -45,9 +45,15 @@ class LibraryDelegate(QtWidgets.QStyledItemDelegate):
     the names, which is the scarcest thing in this panel.
     """
 
-    INDENT = 13        # px per nesting level
+    INDENT = 14        # px per nesting level
     CHEV = 15          # chevron column, folder rows only
-    GAP = 3
+    GAP = 4
+    ROW_PAD = 17       # row height = text height + this
+    ROW_MIN = 33
+    # A top-level folder starts a new section of the list: it gets this much
+    # empty space ABOVE its row (the pill, chevron and text all sit below it),
+    # so samples read as separate blocks instead of one unbroken column.
+    SECTION_GAP = 7
     # An image hangs back from its folder's own text by this much, which is what
     # makes "inside a folder" visible at a glance: a photo in a folder lands just
     # right of that folder's name, while a loose photo at the root sits back at
@@ -118,15 +124,64 @@ class LibraryDelegate(QtWidgets.QStyledItemDelegate):
         if item.data(0, ROLE_KIND) == "folder":
             f.setBold(True)
         else:
-            f.setWeight(QtGui.QFont.DemiBold)   # the panel's long-standing weight
+            # lighter than the folders on purpose: with every row semi-bold the
+            # panel read as one dense block and no folder stood out of it
+            f.setWeight(QtGui.QFont.Medium)
         return f
+
+    def _row_rect(self, item, rect):
+        """The part of an item's rect its row is drawn in: everything, except
+        that a top-level folder leaves SECTION_GAP free above itself."""
+        r = QtCore.QRect(rect)
+        if item.data(0, ROLE_KIND) == "folder" and item.parent() is None:
+            r.setTop(r.top() + self.SECTION_GAP)
+        return r
+
+    def _has_mark(self, item):
+        if self.tree.train_marks:
+            return bool(item.data(0, ROLE_TRAIN) or TR_NONE)
+        return bool(item.data(0, ROLE_FRESH) or FRESH_NONE)
+
+    def _text_room(self, item, rect):
+        """Width the name may take in this row (the dot's lane is taken out, so
+        a long name is cut before it can run underneath the dot)."""
+        return max(0, rect.width() - self._text_left(item) - 4
+                   - (self.DOT_ROOM if self._has_mark(item) else 0))
+
+    def _elide_mode(self, item):
+        """A photo keeps BOTH ends of its name: the photos of one folder share
+        their beginning and differ in the last few characters ("… 160 °C 15 dk
+        HT 3"), which a cut at the end would throw away. A folder is cut at the
+        end, where its name is least specific."""
+        return (QtCore.Qt.ElideMiddle if item.data(0, ROLE_KIND) == "image"
+                else QtCore.Qt.ElideRight)
+
+    def is_cut(self, item, rect):
+        """Whether this row's name does not fit and is drawn shortened."""
+        fm = QtGui.QFontMetrics(self._row_font(self.tree.font(), item))
+        return (fm.horizontalAdvance(self.display_name(item))
+                > self._text_room(item, rect))
+
+    def helpEvent(self, event, view, option, index):
+        """A shortened name shows itself in full on hover — the one place the
+        whole name can be read without widening the panel. A row whose name
+        fits keeps only its state note (see LibraryPanel._style_row)."""
+        item = self.tree.itemFromIndex(index)
+        if item is not None and event.type() == QtCore.QEvent.ToolTip:
+            note = item.toolTip(0)
+            if self.is_cut(item, option.rect):
+                name = self.display_name(item)
+                QtWidgets.QToolTip.showText(
+                    event.globalPos(), f"{name}\n{note}" if note else name, view)
+                return True
+        return super().helpEvent(event, view, option, index)
 
     def paint(self, painter, option, index):
         item = self.tree.itemFromIndex(index)
         if item is None:
             return super().paint(painter, option, index)
         is_folder = item.data(0, ROLE_KIND) == "folder"
-        r = option.rect
+        r = self._row_rect(item, option.rect)
         # The pill starts a fixed gap left of the text — except on a folder, where
         # it starts at the chevron, so the expand arrow sits INSIDE the highlight
         # instead of being stranded next to it.
@@ -188,14 +243,12 @@ class LibraryDelegate(QtWidgets.QStyledItemDelegate):
             fresh = item.data(0, ROLE_TRAIN) or TR_NONE
         painter.setPen(QtGui.QColor(fg))
         tx = r.left() + self._text_left(item)
-        # the dot's lane is taken out of the text's width, so a long name elides
-        # into "…" before it can run underneath the dot
-        tw = max(0, r.right() - tx - 4 - (self.DOT_ROOM if fresh else 0))
+        tw = self._text_room(item, r)
         fm = QtGui.QFontMetrics(painter.font())
         painter.drawText(QtCore.QRect(tx, r.top(), tw, r.height()),
                          QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft,
                          fm.elidedText(self.display_name(item),
-                                       QtCore.Qt.ElideRight, tw))
+                                       self._elide_mode(item), tw))
 
         if fresh:
             # clamped to the row's own rect for the same reason the pill is (see
@@ -218,14 +271,18 @@ class LibraryDelegate(QtWidgets.QStyledItemDelegate):
         if item is None:
             return super().sizeHint(option, index)
         fm = QtGui.QFontMetrics(self._row_font(option.font, item))
+        h = max(self.ROW_MIN, fm.height() + self.ROW_PAD)
+        if item.data(0, ROLE_KIND) == "folder" and item.parent() is None:
+            h += self.SECTION_GAP
         return QtCore.QSize(self._text_left(item) + fm.horizontalAdvance(
-            self.display_name(item)) + 8, max(31, fm.height() + 15))
+            self.display_name(item)) + 8, h)
 
     # renaming edits the REAL name (extension included), positioned over the text
     def updateEditorGeometry(self, editor, option, index):
         item = self.tree.itemFromIndex(index)
         r = QtCore.QRect(option.rect)
         if item is not None:
+            r = self._row_rect(item, r)
             r.setLeft(r.left() + self._text_left(item) - 4)
         # inset so the editor's own frame and text highlight can never reach the
         # row edge (it used to look like it was about to spill out)
@@ -361,6 +418,17 @@ class LibraryTree(QtWidgets.QTreeWidget):
         self.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
         self.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
         self.setItemDelegate(LibraryDelegate(self))
+        # bottom space (see _pad_scroll): re-applied whenever Qt resets the range,
+        # and once more after anything that changes how many rows are shown
+        self._padding = False
+        self._pad_timer = QtCore.QTimer(self)
+        self._pad_timer.setSingleShot(True); self._pad_timer.setInterval(0)
+        self._pad_timer.timeout.connect(self._pad_scroll)
+        self.verticalScrollBar().rangeChanged.connect(self._pad_scroll)
+        for sig in (self.itemExpanded, self.itemCollapsed,
+                    self.model().rowsInserted, self.model().rowsRemoved,
+                    self.model().modelReset):
+            sig.connect(lambda *_: self._pad_timer.start())
         # --- drag auto-scroll ---
         # Qt's built-in auto-scroll is turned OFF: in ScrollPerPixel mode it
         # crawls a pixel at a time and stalls when the pointer is held still at
@@ -373,6 +441,53 @@ class LibraryTree(QtWidgets.QTreeWidget):
         self._as_timer.timeout.connect(self._auto_scroll_step)
         self._as_speed = 0.0                     # px/tick; sign gives direction
         self._as_accum = 0.0                     # carries fractional pixels
+
+    # Empty space kept under the last row. Without it the list ended flush with
+    # the panel's bottom edge: the last row looked cut off rather than last, and
+    # when that row sat deep inside a folder there was no bare spot to drop a row
+    # on to take it back out to the top level.
+    BOTTOM_SPACE = 64
+
+    def _last_visible_item(self):
+        it = self.invisibleRootItem()
+        while it.childCount() and (it is self.invisibleRootItem() or it.isExpanded()):
+            it = it.child(it.childCount() - 1)
+        return None if it is self.invisibleRootItem() else it
+
+    def _content_height(self):
+        """Height of every row that is currently shown, added up."""
+        total = 0
+        stack = [self.invisibleRootItem()]
+        while stack:
+            it = stack.pop()
+            for j in range(it.childCount()):
+                c = it.child(j)
+                total += self.rowHeight(self.indexFromItem(c))
+                if c.isExpanded() and c.childCount():
+                    stack.append(c)
+        return total
+
+    def _pad_scroll(self, *_):
+        """Stretch the scroll range by BOTTOM_SPACE past the last row.
+
+        Qt sets the range from several private places (not only the virtual
+        updateGeometries), so this listens to the scrollbar itself and puts the
+        extra back every time Qt takes it away."""
+        if getattr(self, "_padding", True):
+            return                 # re-entered, or called before __init__ is done
+        self._padding = True
+        try:
+            sb = self.verticalScrollBar()
+            top = max(0, self._content_height() + self.BOTTOM_SPACE
+                      - self.viewport().height())
+            if self.topLevelItemCount() and top != sb.maximum():
+                sb.setRange(0, top)
+        finally:
+            self._padding = False
+
+    def updateGeometries(self):
+        super().updateGeometries()
+        self._pad_scroll()
 
     def _on_collapsed(self, item):
         """Collapsing a folder drops the selection of everything it just hid.

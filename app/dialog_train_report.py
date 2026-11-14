@@ -390,9 +390,12 @@ class TrainReportWindow(QtWidgets.QDialog):
         self.stack.addWidget(self.empty)
 
         self.status = _lab("", color="#6b7580", size=12)
-        self.btn_save = QtWidgets.QPushButton("⤓   Save report…")
+        from icons import set_icon
+        self.btn_save = QtWidgets.QPushButton("Save report…")
+        set_icon(self.btn_save, "save")
         self.btn_save.clicked.connect(self._save)
-        btn_folder = QtWidgets.QPushButton("📁  Golden klasörü")
+        btn_folder = QtWidgets.QPushButton("Golden klasörü")
+        set_icon(btn_folder, "folder")
         btn_folder.setToolTip("Golden set klasörünü aç")
         btn_folder.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(
             QtCore.QUrl.fromLocalFile(golden_store.golden_dir())))

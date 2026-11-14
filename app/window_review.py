@@ -54,10 +54,10 @@ class ReviewFlow:
         m.addSeparator()
         blank = self.current in self.train_blank
         if blank:
-            act = m.addAction("↩  Restore model predictions")
+            act = m.addAction("Restore model predictions")
             act.triggered.connect(self._restore_model_view)
         else:
-            act = m.addAction("🧹  Clear all · label from scratch")
+            act = m.addAction("Clear all · label from scratch")
             act.triggered.connect(self._clear_all)
 
     # ---- contact-sheet review ------------------------------------------------
@@ -144,7 +144,7 @@ class ReviewFlow:
         menu = CheckMenu(self)
         head = menu.addAction(f"{n_photos} photo(s) — check which answer?")
         head.setEnabled(False)
-        again = menu.addAction("↻   Also the ones I already confirmed")
+        again = menu.addAction("Also the ones I already confirmed")
         again.setCheckable(True)
         menu.addSeparator()
         acts = {}

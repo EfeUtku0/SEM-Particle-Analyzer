@@ -21,8 +21,10 @@ import training_store
 from chart_data import (CLASS_ORDER, CLASS_LABELS, CLASS_COLORS, STAT_LABELS,
                         VOLUME_TILE_KEYS)
 from ui_theme import _sep, _chip_qss, set_ui_size, ui_size
+from icons import (icon, set_icon, set_primary_icon, INK_SIDE, INK_MINI,
+                   INK_ON)
 from widget_image_view import ImageView, ScaledImage
-from widget_tiles import CheckMenu, Tile, AspectCard
+from widget_tiles import CheckMenu, FitButton, Tile, AspectCard
 from widget_library_tree import LibraryTree, SearchBox, SearchDelegate
 from window_pattern_size import RangeSlider
 
@@ -143,8 +145,9 @@ class WindowLayout:
         # undercooled and the patterns. (It used to be a menu where each of the
         # three was ticked separately; every run wants all of them, and the
         # RESULTS panel now filters afterwards, so the choice was just friction.)
-        self.analyze_btn = QtWidgets.QPushButton("🔬  Analyze")
+        self.analyze_btn = QtWidgets.QPushButton("Analyze")
         self.analyze_btn.setObjectName("primary")
+        set_primary_icon(self.analyze_btn, "analyze")
         self.analyze_btn.setMinimumHeight(40)   # the height of Guide / Save
         self.analyze_btn.setToolTip("Measure the selected image(s): size, "
                                     "solid / undercooled and patterns")
@@ -195,7 +198,8 @@ class WindowLayout:
         # ---- Save drop-down (top right): tick what to write, then Export.
         # Two sections: WHAT to export (images / charts) and, for the charts,
         # WHICH distribution — the whole set or one class on its own.
-        self.save_btn = QtWidgets.QPushButton("💾  Save")
+        self.save_btn = QtWidgets.QPushButton("Save")
+        set_icon(self.save_btn, "save")
         self.save_btn.setMinimumHeight(40)
         self._save_menu = CheckMenu(self.save_btn)
 
@@ -248,6 +252,7 @@ class WindowLayout:
         _bl.addWidget(self.ex_title)
         _tw.setDefaultWidget(_box)
         self._save_menu.addAction(_tw)
+        self._title_action = _tw        # re-measured when the menu opens
         self._save_menu.addSeparator()
         act_export = self._save_menu.addAction("Export…")
         f = act_export.font(); f.setBold(True); act_export.setFont(f)
@@ -279,7 +284,8 @@ class WindowLayout:
 
         # ---- Training-mode toggle: flips the right panel to the labelling
         # tools and turns image clicks into per-particle class corrections.
-        self.train_btn = QtWidgets.QPushButton("🎓  Training")
+        self.train_btn = QtWidgets.QPushButton("Training")
+        set_icon(self.train_btn, "training", on=INK_ON)
         self.train_btn.setCheckable(True)
         self.train_btn.setMinimumHeight(40)
         self.train_btn.setToolTip("Correct particle classes by clicking; feed them back into the model")
@@ -290,20 +296,36 @@ class WindowLayout:
         # A short in-app manual of the controls a first-time user can't guess
         # (Space, right-click-to-drop, view-only vs. training…), opened beside
         # Training so it's the first thing a newcomer reaches for.
-        self.guide_btn = QtWidgets.QPushButton("📖  Guide")
+        self.guide_btn = QtWidgets.QPushButton("Guide")
+        set_icon(self.guide_btn, "guide")
         self.guide_btn.setMinimumHeight(40)
         self.guide_btn.setToolTip("The controls that aren't obvious — worth a read")
         self.guide_btn.clicked.connect(self._open_guide)
 
-        # Analyze keeps the width of its widest caption ("⏳  Analyzing…") so the
+        # Shown only when GitHub has a newer download for this OS (see
+        # update_check / MainWindow._start_update_check); hidden otherwise, so
+        # the bar looks exactly as before when there is nothing to say.
+        self.update_btn = QtWidgets.QPushButton()
+        self.update_btn.setMinimumHeight(40)
+        self.update_btn.setCursor(QtCore.Qt.PointingHandCursor)
+        self.update_btn.setStyleSheet(
+            "QPushButton { background:#e9f6ee; border:1px solid #5aa77f; "
+            "color:#1f5c38; font-weight:700; padding:0 9px; border-radius:8px; }"
+            "QPushButton:hover { background:#dcf0e3; }")
+        self.update_btn.clicked.connect(self._open_update_page)
+        self.update_btn.hide()
+
+        # Analyze keeps the width of its widest caption ("Analyzing…") so the
         # bar doesn't shift under the user the moment an analysis starts — and so
         # the centred block below stays put.
         _fm = self.analyze_btn.fontMetrics()
         self.analyze_btn.setFixedWidth(max(
-            _fm.horizontalAdvance(t) for t in ("🔬  Analyze", "⏳  Analyzing…")) + 34)
+            _fm.horizontalAdvance(t) for t in ("Analyze", "Analyzing…"))
+            + self.analyze_btn.iconSize().width() + 34)
 
         right_row = QtWidgets.QHBoxLayout()
         right_row.setSpacing(16); right_row.setContentsMargins(0, 0, 0, 0)
+        right_row.addWidget(self.update_btn)
         right_row.addWidget(self.guide_btn)
         right_row.addWidget(self.train_btn)
         right_row.addWidget(self.save_btn)
@@ -334,6 +356,12 @@ class WindowLayout:
             lay.addWidget(widget)
             return f
         return tbw
+
+    # The IMAGES column. Its right edge can be dragged (MainWindow puts it in a
+    # splitter); the width is remembered across restarts (SessionStore._prefs).
+    # 260 is the widest it can be in the default-size window while every tool
+    # button under the photo still shows its label on one line.
+    LEFT_W, LEFT_MIN_W, LEFT_MAX_W = 260, 230, 560
 
     def _build_left_panel(self):
         """The IMAGES column: the tree, its search box and the buttons under it."""
@@ -376,15 +404,18 @@ class WindowLayout:
 
         # two compact actions on one row — the panel is narrow and every pixel
         # of width belongs to the file names, not to button padding
-        imp_btn = QtWidgets.QPushButton("＋  Import"); imp_btn.clicked.connect(self.import_items)
+        imp_btn = QtWidgets.QPushButton("Import"); imp_btn.clicked.connect(self.import_items)
         imp_btn.setToolTip("Pick folders to import them whole, or pick individual "
                            "images inside a folder — the files on disk are never "
                            "moved or changed.")
-        newf_btn = QtWidgets.QPushButton("📁  Folder"); newf_btn.clicked.connect(self._new_folder)
-        newf_btn.setToolTip("New folder — with rows selected, it groups them inside.")
+        newf_btn = QtWidgets.QPushButton("Folder"); newf_btn.clicked.connect(self._new_folder)
         # (a third button, Sort, ran smartsort over the file names; removed on
         # the user's word, 2026-11-14: never used. _smart_sort is still there.)
-        btn_row = QtWidgets.QHBoxLayout(); btn_row.setSpacing(6)
+        for b, name in ((imp_btn, "plus"), (newf_btn, "folder_plus")):
+            set_icon(b, name, INK_SIDE, size=15, gap=5)
+        img_btn_row = QtWidgets.QWidget()
+        btn_row = QtWidgets.QHBoxLayout(img_btn_row); btn_row.setSpacing(6)
+        btn_row.setContentsMargins(0, 0, 0, 0)
         for b in (imp_btn, newf_btn):
             b.setObjectName("sidebtn")
             b.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
@@ -395,7 +426,9 @@ class WindowLayout:
         # under the tree would leave neither of them usable)
         self.search = SearchBox()
         self.search.setObjectName("searchbox")
-        self.search.setPlaceholderText("🔍   Search images")
+        self.search.setPlaceholderText("Search images")
+        self.search.addAction(icon("search", "#8a95a1", size=15, gap=0),
+                              QtWidgets.QLineEdit.LeadingPosition)
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._on_search)
         self.search.returnPressed.connect(self._search_reveal_current)
@@ -419,9 +452,9 @@ class WindowLayout:
         left.addWidget(hdr("IMAGES"))
         left.addWidget(self.search)
         left.addWidget(self.list_stack, 1)
-        left.addLayout(btn_row)
+        left.addWidget(img_btn_row)
         leftw = QtWidgets.QWidget(); leftw.setLayout(left)
-        leftw.setMinimumWidth(160); leftw.setMaximumWidth(380)
+        leftw.setMinimumWidth(self.LEFT_MIN_W); leftw.setMaximumWidth(self.LEFT_MAX_W)
         return leftw
 
     def _build_middle_panel(self):
@@ -449,34 +482,45 @@ class WindowLayout:
         # "Janus" reads as a filter ("show me the janus ones"), which is what
         # the RESULTS chips above actually do. Spelling out the verb is the one
         # thing that tells a newcomer these REWRITE the particle they click.
-        tools = [("measure", "📏  Measure", None, "M"),
-                 ("certainty", "🎯  Certainty", None, "C"),
-                 ("janus", "Change to Janus", CLASS_COLORS["janus"], "1"),
-                 ("stripe", "Change to Stripe", CLASS_COLORS["stripe"], "2"),
-                 ("composite", "Change to Composite", CLASS_COLORS["composite"], "3"),
-                 ("lamellar", "Change to Lamellar", CLASS_COLORS["lamellar"], "4"),
-                 ("undercooled", "Change to Undercooled", CLASS_COLORS["undercooled"], "5"),
-                 ("solid", "Change to Solid", "#cf8481", "6"),
+        # (key, first part, second part, colour, shortcut): the label is given
+        # in two parts so a narrow card can break it there (see FitButton)
+        tools = [("measure", "", "Measure", None, "M"),
+                 ("certainty", "", "Certainty", None, "C"),
+                 ("janus", "Change to", "Janus", CLASS_COLORS["janus"], "1"),
+                 ("stripe", "Change to", "Stripe", CLASS_COLORS["stripe"], "2"),
+                 ("composite", "Change to", "Composite", CLASS_COLORS["composite"], "3"),
+                 ("lamellar", "Change to", "Lamellar", CLASS_COLORS["lamellar"], "4"),
+                 ("undercooled", "Change to", "Undercooled", CLASS_COLORS["undercooled"], "5"),
+                 ("solid", "Change to", "Solid", "#cf8481", "6"),
                  # not a class change — it takes the particle out of the counts
-                 ("exclude", "Exclude particle", "#9aa4ae", "0")]
+                 ("exclude", "Exclude", "particle", "#9aa4ae", "0")]
         # 3 x 3 grid: the two inspection tools (Measure, Certainty) share the top
         # row; the card stays compact and the class labels get more width
-        for i, (key, lab, col, sc) in enumerate(tools):
-            b = QtWidgets.QPushButton(f"{lab}  ({sc})")
-            b.setCheckable(True); b.setMinimumHeight(30)
+        for i, (key, lead, lab, col, sc) in enumerate(tools):
+            b = FitButton(lead, f"{lab}  ({sc})")
+            b.setCheckable(True)
             b.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
                            QtWidgets.QSizePolicy.Expanding)
             b.setStyleSheet(_chip_qss(col, align="left", radius=10,
                                       pad="4px 10px", size=12.5))
             if col is not None:
-                pm = QtGui.QPixmap(11, 11); pm.fill(QtGui.QColor(col))
-                b.setIcon(QtGui.QIcon(pm))
+                b.set_swatch(col)
+            else:       # the two inspection tools: a line icon, not a swatch
+                b.set_glyph(icon(key, "#5b6672", on=INK_ON, gap=5),
+                            QtCore.QSize(21, 16))
             b.clicked.connect(lambda _=False, k=key: self._toggle_click_tool(k))
             self._tool_grp.addButton(b); self._tool_btns[key] = b
             r, c = divmod(i, 3)
             tool_grid.addWidget(b, r, c)
+        # Each column gets width in proportion to its longest label, not a flat
+        # third: "Change to Undercooled" needs a quarter more than "Change to
+        # Lamellar", and with equal columns it was the first to run out of room
+        # while its neighbours still had some to spare.
         for c in range(3):
-            tool_grid.setColumnStretch(c, 1)
+            tool_grid.setColumnStretch(c, max(
+                self._tool_btns[k].one_line_width()
+                for k in [t[0] for t in tools][c::3]))
+            tool_grid.setColumnMinimumWidth(c, 0)
         for r in range(3):
             tool_grid.setRowStretch(r, 1)
         self._tool_btns["measure"].setChecked(True)
@@ -501,7 +545,8 @@ class WindowLayout:
         # IMAGES / RESULTS cards beside it.
         cap_row = QtWidgets.QHBoxLayout(); cap_row.setContentsMargins(0, 0, 2, 0)
         cap_row.setSpacing(6)
-        cap_row.addWidget(hdr("PARTICLES"))
+        self._mid_caption = hdr("PARTICLES")
+        cap_row.addWidget(self._mid_caption)
         cap_row.addStretch(1)
         self.scale_chip = ClickLabel("")
         self.scale_chip.setObjectName("scalechip")
@@ -520,7 +565,10 @@ class WindowLayout:
         # tall now, so growing here just extends the grey, it never squeezes the
         # image (whose height follows the column width, not this layout).
         mid.addWidget(adj_card, 1)
-        midw = QtWidgets.QWidget(); midw.setLayout(mid); midw.setMinimumWidth(420)
+        midw = QtWidgets.QWidget(); midw.setLayout(mid)
+        # never narrower than the nine tool buttons need to show their labels
+        # whole — the IMAGES panel can be dragged wide, and it stops here
+        midw.setMinimumWidth(max(420, mid.minimumSize().width()))
         return midw
 
     def _build_results_panel(self):
@@ -819,8 +867,9 @@ class WindowLayout:
 
         # Only ever offered on a photo that is in the set AND has drifted from
         # it: puts back exactly what was saved, for the mis-click case.
-        self.tr_restore_btn = QtWidgets.QPushButton("↩  Restore saved")
+        self.tr_restore_btn = QtWidgets.QPushButton("Restore saved")
         self.tr_restore_btn.setObjectName("trainmini")
+        set_icon(self.tr_restore_btn, "restore", INK_MINI, size=14, gap=5)
         self.tr_restore_btn.setToolTip(
             "Go back to the labels this photo was added to the training set with")
         self.tr_restore_btn.clicked.connect(self._train_restore)
@@ -829,7 +878,7 @@ class WindowLayout:
         # The review switch: instead of the labels, paint the particles where the
         # model's own answer differs from the ground truth this photo was added
         # with. Answers "what does the model still get wrong here?".
-        self.tr_review_cb = QtWidgets.QCheckBox("🔍   Show where the model disagrees")
+        self.tr_review_cb = QtWidgets.QCheckBox("Show where the model disagrees")
         self.tr_review_cb.setToolTip(
             "Compare the model's current answer against the labels this photo "
             "was added to the training set with, and paint only the differences")
@@ -838,7 +887,7 @@ class WindowLayout:
         # In review, most of the model's "mistakes" turn out to be right. Fixing
         # those by hand means picking the matching class tool for each one; this
         # turns a click into "you're right, take yours" instead.
-        self.tr_accept_cb = QtWidgets.QCheckBox("✓   Click a particle to accept the model's answer")
+        self.tr_accept_cb = QtWidgets.QCheckBox("Click a particle to accept the model's answer")
         self.tr_accept_cb.setToolTip(
             "While this is on, clicking a particle in the review adopts the "
             "model's class as your label — whatever class tool is selected. "
@@ -866,8 +915,9 @@ class WindowLayout:
                                      QtWidgets.QSizePolicy.Expanding)
 
         # Clear: a menu — clear all my labels (blank slate) or one class at a time
-        self.tr_clear_btn = QtWidgets.QPushButton("🧹  Clear")
+        self.tr_clear_btn = QtWidgets.QPushButton("Clear")
         self.tr_clear_btn.setObjectName("trainmini")
+        set_icon(self.tr_clear_btn, "clear", INK_MINI, size=14, gap=5)
         self.tr_clear_btn.setToolTip(
             "Clear labels — one class at a time, or all of them")
         self.tr_clear_btn.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -875,35 +925,40 @@ class WindowLayout:
         self._clear_menu.aboutToShow.connect(self._build_clear_menu)
         self.tr_clear_btn.setMenu(self._clear_menu)
 
-        self.tr_confirm_btn = QtWidgets.QPushButton("✓   Add photo to training set")
+        self.tr_confirm_btn = QtWidgets.QPushButton("Add photo to training set")
         self.tr_confirm_btn.setObjectName("primary")
+        set_primary_icon(self.tr_confirm_btn, "check")
         self.tr_confirm_btn.setMinimumHeight(32)
         self.tr_confirm_btn.clicked.connect(self._train_confirm)
         # The bulk route in: check a whole class at a glance instead of clicking
         # a thousand particles one at a time on the micrograph.
-        self.tr_review_btn = QtWidgets.QPushButton("▦   Review particles")
+        self.tr_review_btn = QtWidgets.QPushButton("Review particles")
         self.tr_review_btn.setObjectName("trainmini")
+        set_icon(self.tr_review_btn, "grid", INK_MINI, size=14, gap=5)
         self.tr_review_btn.setToolTip(
             "Show every particle the model gave one class as a grid of crops, "
             "least confident first. Confirm a page at a glance; click only the "
             "wrong ones. Uses the photos selected in IMAGES.")
         self.tr_review_btn.clicked.connect(self._open_review)
-        self.tr_train_btn = QtWidgets.QPushButton("🧠  Train model")
+        self.tr_train_btn = QtWidgets.QPushButton("Train model")
         self.tr_train_btn.setObjectName("trainmini")
+        set_icon(self.tr_train_btn, "model", INK_MINI, size=14, gap=5)
         self.tr_train_btn.clicked.connect(self._train_go)
         # undoes an accidental click on Train model: hidden until a run is
         # actually in progress, so it never sits next to the button as a
         # second thing to misclick
-        self.tr_cancel_btn = QtWidgets.QPushButton("✕")
+        self.tr_cancel_btn = QtWidgets.QPushButton()
         self.tr_cancel_btn.setObjectName("trainmini")
+        set_icon(self.tr_cancel_btn, "close", INK_MINI, size=14, gap=0)
         self.tr_cancel_btn.setToolTip("Cancel training")
         self.tr_cancel_btn.setFixedWidth(30)
         self.tr_cancel_btn.setVisible(False)
         self.tr_cancel_btn.clicked.connect(self._train_cancel)
         self.tr_prog = QtWidgets.QProgressBar(); self.tr_prog.setVisible(False)
         self.tr_metrics = ctl(""); self.tr_metrics.setWordWrap(True)
-        folder_btn = QtWidgets.QPushButton("📁")
+        folder_btn = QtWidgets.QPushButton()
         folder_btn.setObjectName("trainmini")
+        set_icon(folder_btn, "folder", INK_MINI, size=15, gap=0)
         folder_btn.setToolTip("Open the training folder")
         folder_btn.setFixedWidth(38)
         folder_btn.clicked.connect(lambda: QtGui.QDesktopServices.openUrl(
@@ -919,8 +974,9 @@ class WindowLayout:
         # edits are transient view corrections and must never become training
         # data. The checkbox does it on confirm; the button is the catch-up for
         # a photo labelled before this existed, or not confirmed yet.
-        self.tr_reflect_btn = QtWidgets.QPushButton("⇩   Apply labels to normal mode")
+        self.tr_reflect_btn = QtWidgets.QPushButton("Apply labels to normal mode")
         self.tr_reflect_btn.setObjectName("trainmini")
+        set_icon(self.tr_reflect_btn, "apply", INK_MINI, size=14, gap=5)
         self.tr_reflect_btn.setToolTip(
             "Copy THIS photo's training labels onto its normal-mode view, so an "
             "analysis run from the normal panel uses your corrections.\n"
@@ -934,8 +990,9 @@ class WindowLayout:
             "On by default: a photo you have taught should read the same way in "
             "the panel you analyse from.")
 
-        self.tr_ps_btn = QtWidgets.QPushButton("📊  Pattern × Size")
+        self.tr_ps_btn = QtWidgets.QPushButton("Pattern × Size")
         self.tr_ps_btn.setObjectName("trainmini")
+        set_icon(self.tr_ps_btn, "bars", INK_MINI, size=14, gap=5)
         self.tr_ps_btn.setToolTip(
             "Open the Pattern × Size chart for YOUR labels on this photo")
         self.tr_ps_btn.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -945,8 +1002,9 @@ class WindowLayout:
         # panel could never answer. Opens the last measured learning curve; the
         # checkbox next to Train decides whether the next run measures a fresh
         # one (it costs real minutes, so it is a choice, not a default tax).
-        self.tr_sat_btn = QtWidgets.QPushButton("📈  Data saturation")
+        self.tr_sat_btn = QtWidgets.QPushButton("Data saturation")
         self.tr_sat_btn.setObjectName("trainmini")
+        set_icon(self.tr_sat_btn, "curve", INK_MINI, size=14, gap=5)
         self.tr_sat_btn.setToolTip(
             "Accuracy against how much data it was trained on — whether more "
             "labelled photos are still buying accuracy, or the curve has "
@@ -957,8 +1015,9 @@ class WindowLayout:
         # beside it: scoring on the golden set is one forward pass over a handful
         # of photos, so there is nothing to opt out of. The cross-validation this
         # replaced cost three quarters of the run, which is why it HAD a switch.
-        self.tr_report_btn = QtWidgets.QPushButton("📋  Model raporu")
+        self.tr_report_btn = QtWidgets.QPushButton("Model raporu")
         self.tr_report_btn.setObjectName("trainmini")
+        set_icon(self.tr_report_btn, "report", INK_MINI, size=14, gap=5)
         self.tr_report_btn.setToolTip(
             "Her eğitimin golden set skoru: sınıf sınıf recall / precision / F1, "
             "karışıklık matrisi, mikroskop başına ayrım — ve geçmiş eğitimler "

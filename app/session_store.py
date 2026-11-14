@@ -96,10 +96,16 @@ class SessionStore:
     PREF_BOXES = ("tr_sat_cb", "tr_reflect_cb")
 
     def _prefs(self):
-        return {name: bool(getattr(self, name).isChecked())
-                for name in self.PREF_BOXES if hasattr(self, name)}
+        prefs = {name: bool(getattr(self, name).isChecked())
+                 for name in self.PREF_BOXES if hasattr(self, name)}
+        if hasattr(self, "body_split"):       # the dragged IMAGES panel width
+            prefs["left_w"] = int(self.body_split.want)
+        return prefs
 
     def _apply_prefs(self, prefs):
+        w = (prefs or {}).get("left_w")
+        if isinstance(w, int) and hasattr(self, "body_split"):
+            self.body_split.set_left(max(self.LEFT_MIN_W, min(self.LEFT_MAX_W, w)))
         for name, val in (prefs or {}).items():
             box = getattr(self, name, None)
             if name in self.PREF_BOXES and box is not None:

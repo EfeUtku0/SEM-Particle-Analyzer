@@ -17,7 +17,7 @@ import os
 import traceback
 
 import numpy as np
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 import chart_data
 from widget_library_tree import ROLE_KIND
@@ -50,15 +50,34 @@ class ResultsPanel:
             return stems[0]
         return os.path.commonprefix(stems).rstrip(" -_")
 
+    TITLE_MIN_W, TITLE_MAX_W = 226, 560
+
     def _open_save_menu(self):
         """Drop the save menu under the Save button, right-aligned to it."""
-        # the title box offers the default name, but never over something the
-        # user typed: it is refilled only while it still holds the last
-        # default (or nothing), so clearing it brings the default back
+        # The title box ALWAYS follows what is selected: pick another photo or
+        # folder and the name offered is that one's, whatever the box held
+        # before. (It used to keep anything the user had typed, so one custom
+        # name stuck to every later save of every other photo.) A typed name is
+        # kept only while the selection it was typed for is still the selection,
+        # so reopening the menu does not wipe what was just written.
         box = self.ex_title
-        if box.text().strip() in ("", getattr(self, "_title_auto", "")):
-            self._title_auto = self._default_title()
-            box.setText(self._title_auto)
+        auto = self._default_title()
+        sel = (tuple(self._selected_paths()) or self.current, auto)
+        if (sel != getattr(self, "_title_sel", None)
+                or box.text().strip() in ("", getattr(self, "_title_auto", ""))):
+            box.setText(auto)
+        self._title_auto, self._title_sel = auto, sel
+        # The box is as wide as the name in it (within reason), so the name is
+        # read whole: a fixed 210 px box showed "Ö - 23 Karışık %99 Ethanol 11"
+        # with its beginning scrolled out of sight. Past the cap the START is
+        # what stays visible, since that is where a sample name says what it is.
+        box.ensurePolished()
+        need = box.fontMetrics().horizontalAdvance(box.text()) + 64   # padding + ✕
+        box.setFixedWidth(max(self.TITLE_MIN_W, min(self.TITLE_MAX_W, need)))
+        box.setCursorPosition(0)
+        # a QMenu caches the size of an embedded widget — make it measure again
+        self._title_action.setVisible(False)
+        self._title_action.setVisible(True)
         m = self._save_menu
         x = self.save_btn.width() - m.sizeHint().width()
         pos = self.save_btn.mapToGlobal(QtCore.QPoint(x, self.save_btn.height() + 4))

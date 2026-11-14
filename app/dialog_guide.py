@@ -95,7 +95,7 @@ class GuideDialog(QtWidgets.QDialog):
                 f"produce an answer — a {amber('wrong')} one, with no warning. "
                 f"Sizes travel further than classes (they are geometry plus the "
                 f"scale bar), but the pattern classes do not travel at all.",
-                f"For your own material, {k('🎓 Training')} is the way: label your "
+                f"For your own material, {k('Training')} is the way: label your "
                 f"particles and retrain the pattern model on them.",
                 f"Patterns are only read on images from a "
                 f"{k('composition-contrast')} detector — a topographic image "
@@ -104,18 +104,18 @@ class GuideDialog(QtWidgets.QDialog):
             ]),
             cls._section("Getting images in", [
                 f"Drag images or whole folders onto the left panel, or use "
-                f"{k('＋ Import')}. Nothing on disk is moved — the library only "
+                f"{k('Import')}. Nothing on disk is moved — the library only "
                 f"references your files, and it comes back the next time you open "
                 f"the app.",
                 f"{k('.tif')} files are converted automatically, so you never "
                 f"have to prepare them first.",
-                f"The {k('🔍 Search')} box filters the whole library as you type — "
+                f"The {k('Search')} box filters the whole library as you type — "
                 f"accents and capitals don't matter, so “karisik” finds “Karışık”. "
                 f"Click a hit to look at it, {k('double-click')} it (or press "
                 f"{k('Enter')}) to jump to where it sits in the tree, {k('Esc')} to "
                 f"go back.",
                 f"Select one or several images (or a folder) and press "
-                f"{k('🔬 Analyze')}. With several selected the results are pooled "
+                f"{k('Analyze')}. With several selected the results are pooled "
                 f"into one distribution. Pressing Analyze again re-runs from "
                 f"scratch, so any change you made takes effect.",
                 f"The small dot on the right of a row says how fresh its analysis "
@@ -124,7 +124,7 @@ class GuideDialog(QtWidgets.QDialog):
                 f"{k('Analyze')} again to bring it up to date (a folder shows amber "
                 f"when anything inside it does). No dot means not analysed yet. "
                 f"Re-running is quick — the heavy segmentation step is cached. "
-                f"(In {k('🎓 Training')} the same dot switches to the training "
+                f"(In {k('Training')} the same dot switches to the training "
                 f"set instead — see below.)",
                 f"Every size is pixels × the photo's {k('scale')}. When the "
                 f"scale bar and the magnification agree it is confirmed and "
@@ -149,7 +149,7 @@ class GuideDialog(QtWidgets.QDialog):
                 f"Particles tinted {blue} are <b>not</b> counted in the size "
                 f"statistics: they touch the frame or are too covered for their "
                 f"diameter to be trusted.",
-                f"With the {k('📏 Measure')} tool, {k('left-click')} a particle to "
+                f"With the {k('Measure')} tool, {k('left-click')} a particle to "
                 f"show or hide its size line.",
                 f"{k('Left-click')} a {blue} particle to <b>force it in</b> to the "
                 f"statistics (you're overruling the app).",
@@ -185,22 +185,22 @@ class GuideDialog(QtWidgets.QDialog):
                 f"repeatedly to undo several. It also puts back anything you "
                 f"removed from the image list; removing a photo never deletes "
                 f"its analysis, so re-adding it brings the analysis along.",
-                f"To actually correct the model, turn on {k('🎓 Training')} and "
+                f"To actually correct the model, turn on {k('Training')} and "
                 f"click the mistakes there.",
-                f"{k('🎯 Certainty')} tells you how sure the model is — click a "
+                f"{k('Certainty')} tells you how sure the model is — click a "
                 f"particle to see its score.",
             ]),
             cls._section("Training", [
-                f"While {k('🎓 Training')} is on, the dot on the right of a row "
+                f"While {k('Training')} is on, the dot on the right of a row "
                 f"stops talking about the analysis and says where the photo "
                 f"stands in the <b>training set</b>: {amber('orange')} = not "
                 f"added yet, {green('green')} = added exactly as it looks now, "
                 f"{accent('blue')} = added, then changed since. A folder shows "
                 f"the one that most wants your attention.",
                 f"On a blue (changed) photo the panel offers "
-                f"{k('↩ Restore saved version')}, which puts back exactly the "
+                f"{k('Restore saved version')}, which puts back exactly the "
                 f"labels it was added with — the way out of a stray key press.",
-                f"{k('🔍 Show where the model disagrees')} paints only the "
+                f"{k('Show where the model disagrees')} paints only the "
                 f"particles whose class the model now reads differently from "
                 f"your labels, in the colour of the <b>model's</b> answer, and "
                 f"lists the differences as “you → model”. That is where you see "
@@ -220,7 +220,7 @@ class GuideDialog(QtWidgets.QDialog):
                 f"<b>added</b> with, with your clicks on it laid over the top. "
                 f"Re-run {k('Analyze')} after training a new model to see that "
                 f"model's answers.",
-                f"{k('📈 Data saturation')} answers the question behind all of "
+                f"{k('Data saturation')} answers the question behind all of "
                 f"this: <b>is more labelling still buying accuracy?</b> It "
                 f"trains small models on 20 – 100 % of your photos and scores "
                 f"each on the same held-out ones, so the curve shows what "
@@ -267,7 +267,7 @@ class GuideDialog(QtWidgets.QDialog):
                 f"sizes carry the volume. A few large particles hold most of it, "
                 f"so each share comes with its 95 % interval (the ± beside it). "
                 f"Pooling several photos narrows it.",
-                f"{k('💾 Save')} exports the chart and the SEM overlay exactly as "
+                f"{k('Save')} exports the chart and the SEM overlay exactly as "
                 f"they look on screen — including every correction you've made.",
             ]),
         ]

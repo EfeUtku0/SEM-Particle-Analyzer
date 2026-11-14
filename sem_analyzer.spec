@@ -40,7 +40,7 @@ hiddenimports = [
     # rendering and output
     "overlay_draw", "chart_data", "charts", "export_files", "fonts",
     # interface: shared widgets and dialogs
-    "ui_theme", "widget_image_view", "widget_tiles", "widget_library_tree",
+    "ui_theme", "icons", "widget_image_view", "widget_tiles", "widget_library_tree",
     "dialog_guide", "dialog_review_sheet", "dialog_saturation",
     "dialog_train_report", "dialog_scale_check",
     "background_workers", "window_pattern_size",
@@ -48,8 +48,12 @@ hiddenimports = [
     "window_library", "window_results", "window_particle_edit",
     "window_review", "window_training", "window_analysis",
     "window_layout", "session_store",
+    # update notice: asks GitHub once per launch, installs nothing
+    "update_check", "certifi",
     # third-party bits PyInstaller cannot see
     "PIL._tkinter_finder", "fontTools.varLib.instancer",
+    # the button icons are SVG, drawn by QtSvg (icons.py)
+    "PySide6.QtSvg",
 ]
 if IS_MAC:
     # native multi-select folder picker; absent elsewhere, and optional there

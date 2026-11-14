@@ -114,14 +114,16 @@ QPushButton#trainmini { padding:5px 8px; font-size:11.5px; font-weight:700;
                         color:#5a6472; border-radius:7px; }
 QPushButton#trainmini::menu-indicator { width:0px; image:none; }
 QCheckBox { padding:3px; spacing:9px; background:transparent; }
-QCheckBox:disabled { color:#aab2bc; }
-QCheckBox::indicator { width:18px; height:18px; border-radius:5px;
-                       border:2px solid #b6c0cc; background:transparent; }
-QCheckBox::indicator:hover { border:2px solid #2b6fff; }
-QCheckBox::indicator:checked { background:#2b6fff; border:2px solid #2b6fff;
+QCheckBox:checked { color:#12386e; }
+QCheckBox:disabled, QCheckBox:checked:disabled { color:#aab2bc; }
+QCheckBox::indicator { width:18px; height:18px; border-radius:6px;
+                       border:1.5px solid #b6c0cc; background:#ffffff; }
+QCheckBox::indicator:hover { border:1.5px solid #2b6fff; }
+QCheckBox::indicator:checked { background:#eaf1fb; border:1.5px solid #2b6fff;
     image:url(CHECKMARK); }
-QCheckBox::indicator:checked:disabled { background:#b9ccf6; border:2px solid #b9ccf6; }
-QCheckBox::indicator:disabled { border:2px solid #cfd6de; background:transparent; }
+QCheckBox::indicator:checked:disabled { background:#eaf1fb; border:1.5px solid #b9ccf6;
+    image:url(CHECKMARK_OFF); }
+QCheckBox::indicator:disabled { border:1.5px solid #cfd6de; background:transparent; }
 QProgressBar { border:none; border-radius:5px; background:#e6ebf0; height:8px;
                text-align:center; color:transparent; }
 QProgressBar::chunk { background:#2b6fff; border-radius:5px; }
@@ -144,7 +146,7 @@ QMenu::separator { height:1px; background:#eff2f5; margin:5px 8px; }
 QMenu::indicator { width:15px; height:15px; margin-left:8px; margin-right:9px;
                    border-radius:4px; border:1.6px solid #c2ccd8;
                    background:transparent; }
-QMenu::indicator:checked { background:#2b6fff; border:1.6px solid #2b6fff;
+QMenu::indicator:checked { background:#eaf1fb; border:1.6px solid #2b6fff;
                            image:url(CHECKMARK); }
 QSlider { min-height:22px; background:transparent; }
 QSlider::groove:horizontal { height:6px; background:#e6ebf0; border-radius:3px; }
@@ -171,9 +173,13 @@ QLineEdit#titlebox { background:#f4f6f8; border:1px solid #dce1e7; border-radius
                      padding:6px 8px; font-weight:600; color:#1a2129; min-width:210px; }
 QLineEdit#titlebox:focus { border:1px solid #2b6fff; background:#ffffff; }
 QWidget#vsep { background:#c7cfd8; }
-QSplitter::handle:horizontal { background:transparent; width:9px; }
-QSplitter::handle:horizontal:hover { background:#bcd2ff; border-radius:4px; }
-QSplitter::handle:horizontal:pressed { background:#2b6fff; border-radius:4px; }
+/* the draggable edge of the IMAGES panel: as wide as the gap between the other
+   columns (so the cards stay evenly spaced), showing only a thin bar in its
+   middle while the pointer is on it */
+QSplitter::handle:horizontal { background:transparent; width:18px; margin:26px 7px 2px 7px;
+                               border-radius:2px; }
+QSplitter::handle:horizontal:hover { background:#bcd2ff; }
+QSplitter::handle:horizontal:pressed { background:#2b6fff; }
 QScrollBar:vertical { background:transparent; width:10px; margin:2px; }
 QScrollBar::handle:vertical { background:#c7d0da; border-radius:5px; min-height:32px; }
 QScrollBar::handle:vertical:hover { background:#aab6c3; }
@@ -216,21 +222,25 @@ def _chip_qss(col=None, align="center", radius=12, pad="1px 8px", size=11.5):
         f"QPushButton:checked{{background:{on_bg};border:1px solid {on_bd};color:{on_fg};}}")
 
 
-def _checkmark_png():
-    """White checkmark for the checkbox indicator; returns a file path.
-    Written to a writable temp dir (the app bundle is read-only when frozen).
-    Drawn oversized with round caps for a clean, classic tick."""
+def _checkmark_png(off: bool = False):
+    """Blue checkmark for the checkbox indicator (pale blue when `off`, for a
+    disabled box); returns a file path. The box itself is a light-blue wash, so
+    the tick carries the colour. Written to a writable temp dir (the app bundle
+    is read-only when frozen). Drawn oversized with round caps, on the same
+    5,12.5 > 9.5,17 > 19,7.5 line the icons.py "check" icon uses."""
     import tempfile
     from PIL import Image as _I, ImageDraw as _D
-    path = os.path.join(tempfile.gettempdir(), "sempa_check2.png")
+    name, col = (("sempa_check_off.png", (185, 204, 246, 255)) if off
+                 else ("sempa_check_blue.png", (43, 111, 255, 255)))
+    path = os.path.join(tempfile.gettempdir(), name)
     s = 64
     im = _I.new("RGBA", (s, s), (0, 0, 0, 0))
     d = _D.Draw(im)
     w = 8
-    pts = [(15, 33), (27, 45), (49, 20)]
-    d.line(pts, fill=(255, 255, 255, 255), width=w, joint="curve")
+    pts = [(13, 33), (25, 45), (51, 20)]
+    d.line(pts, fill=col, width=w, joint="curve")
     for ex, ey in (pts[0], pts[-1]):          # rounded line caps
         r = w / 2 - 0.5
-        d.ellipse([ex - r, ey - r, ex + r, ey + r], fill=(255, 255, 255, 255))
+        d.ellipse([ex - r, ey - r, ex + r, ey + r], fill=col)
     im.save(path)
     return path

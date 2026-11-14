@@ -400,9 +400,28 @@ class LibraryPanel:
 
     # ---- new folder / rename ----
     def _new_folder(self):
-        """New Folder with rows selected groups THOSE rows into it (the natural
-        'put these together' gesture); with nothing selected it just makes an
-        empty folder beside the current one."""
+        """The Folder button. One rule, and it never moves a row:
+
+          a folder is selected        -> the new folder opens INSIDE it
+          a photo is selected         -> inside the folder that photo is in
+          nothing / a loose root row  -> at the top level
+
+        It used to swallow whatever was selected into the new folder, and since
+        some row is nearly always selected the result depended on what happened
+        to be highlighted ("sometimes it lands inside one, sometimes not").
+        Putting rows together is now its own, explicit action — see
+        _group_selected, offered on a multi-selection's right-click menu."""
+        sel = self.tree.selectedItems()
+        cur = self.tree.currentItem()
+        anchor = cur if cur in sel else (sel[0] if sel else None)
+        dest = anchor
+        while dest is not None and dest.data(0, ROLE_KIND) != "folder":
+            dest = dest.parent()
+        self._new_folder_in(dest, after=anchor if dest is None else None)
+
+    def _group_selected(self):
+        """Put the selected rows together in a new folder, which takes the place
+        of the first of them."""
         sel = [it for it in self.tree.selectedItems()]
         # keep only the top-most of a nested selection, so moving a folder
         # doesn't also try to move a child that travelled with it
@@ -418,7 +437,6 @@ class LibraryPanel:
 
         tops = [it for it in sel if not nested(it)]
         if not tops:
-            self._new_folder_in(self._drop_target())
             return
         # the new folder takes the place of the first selected row
         anchor = tops[0]
@@ -527,14 +545,22 @@ class LibraryPanel:
             except OSError:
                 pass
 
-    def _new_folder_in(self, parent):
+    def _new_folder_in(self, parent, after=None):
+        """An empty folder inside `parent` (None = the top level), opened for
+        naming. Inside a folder it becomes the FIRST row, right under the
+        folder's own name, so it appears where the eye already is instead of
+        below however many photos that folder holds. At the top level it goes
+        under `after` (a root row) when given, else to the end of the list."""
         it = self._make_folder_item("New Folder")
         if parent is not None and parent.data(0, ROLE_KIND) == "folder":
-            parent.addChild(it); parent.setExpanded(True)
+            parent.insertChild(0, it); parent.setExpanded(True)
         else:
-            self.tree.addTopLevelItem(it)
+            root = self.tree.invisibleRootItem()
+            idx = root.indexOfChild(after) if after is not None else -1
+            root.insertChild(idx + 1 if idx >= 0 else root.childCount(), it)
         self._save_library()
-        self.tree.setCurrentItem(it)
+        self.tree.setCurrentItem(it)          # also makes it the only selection
+        self.tree.scrollToItem(it)
         self.tree.editItem(it, 0)             # drop straight into rename
 
     def _rename_current(self):
@@ -985,21 +1011,24 @@ class LibraryPanel:
     def _tree_menu(self, pos):
         item = self.tree.itemAt(pos)
         menu = QtWidgets.QMenu(self)
-        if item is None:                       # empty space -> just offer a folder
-            menu.addAction("📁   New Folder", self._new_folder)
+        if item is None:                       # empty space -> a top-level folder
+            menu.addAction("New Folder", lambda: self._new_folder_in(None))
             menu.exec(self.tree.viewport().mapToGlobal(pos))
             return
         kind = item.data(0, ROLE_KIND)
         sel = [it for it in self.tree.selectedItems()] or [item]
-        menu.addAction("✏️   Rename", lambda: self.tree.editItem(item, 0))
+        menu.addAction("Rename", lambda: self.tree.editItem(item, 0))
         if kind == "folder":
-            menu.addAction("📁   New subfolder", lambda: self._new_folder_in(item))
+            menu.addAction("New subfolder", lambda: self._new_folder_in(item))
+        if len(sel) > 1 and item in sel:
+            menu.addAction(f"Group {len(sel)} selected in a new folder",
+                           self._group_selected)
         menu.addSeparator()
         if len(sel) > 1:
-            menu.addAction(f"🗑   Remove {len(sel)} selected",
+            menu.addAction(f"Remove {len(sel)} selected",
                            lambda: self._remove_items(sel))
         else:
-            label = "🗑   Remove folder" if kind == "folder" else "🗑   Remove image"
+            label = "Remove folder" if kind == "folder" else "Remove image"
             menu.addAction(label, lambda: self._remove_items([item]))
         menu.exec(self.tree.viewport().mapToGlobal(pos))
 
