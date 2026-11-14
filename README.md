@@ -58,7 +58,8 @@ classes.
 unzip it and drag the app into Applications. On the **first launch, right-click
 it → Open → Open**. A plain double-click gets refused because the app is
 unsigned. Everything it needs is inside the bundle, the models included, so it
-never asks for the internet.
+needs no internet to analyse. Once per launch it asks GitHub whether a newer
+version exists and shows an Update button if so. It installs nothing.
 
 **Windows (64-bit).** Take the zip from
 [**v1.2.0-windows**](https://github.com/EfeUtku0/SEM-Particle-Analyzer/releases/tag/v1.2.0-windows),
